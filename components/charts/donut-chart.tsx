@@ -120,7 +120,7 @@ export function DonutChart({
               <div className="min-w-0">
                 <p className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <span
-                    className="size-2.5 rounded-full ring-4 ring-[rgb(var(--color-bg-elevated))]"
+                    className="size-2.5 rounded-full ring-4 ring-elevated"
                     style={{ backgroundColor: item.color }}
                   />
                   <span className="truncate">{item.label}</span>
@@ -129,7 +129,7 @@ export function DonutChart({
               </div>
               <div className="pl-3 text-right">
                 <p className="text-sm font-semibold text-foreground">{valueFormatter(item.value)}</p>
-                <p className="text-[11px] uppercase tracking-[0.16em] text-muted">count</p>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted">count.</p>
               </div>
             </div>
           );
