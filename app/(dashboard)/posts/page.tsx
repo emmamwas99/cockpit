@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useApolloClient, useQuery } from "@apollo/client/react";
 import { toast } from "sonner";
 import { Check, Clapperboard, RefreshCw, X } from "lucide-react";
@@ -54,7 +54,6 @@ export default function PostsPage() {
 }
 
 function PostsScreen() {
-  const router = useRouter();
   const params = useSearchParams();
   const client = useApolloClient();
 
@@ -92,12 +91,15 @@ function PostsScreen() {
   const selectedPosts = posts.filter((post) => selected.has(post.id));
   const allSelected = posts.length > 0 && posts.every((post) => selected.has(post.id));
 
-  function switchTab(key: PostTabKey) {
-    const next = new URLSearchParams(params.toString());
-    next.set("tab", key);
-    router.replace(`/posts?${next.toString()}`, { scroll: false });
+  function prepareTabChange() {
     setPage(1);
     setSelected(new Set());
+  }
+
+  function tabHref(key: PostTabKey) {
+    const next = new URLSearchParams(params.toString());
+    next.set("tab", key);
+    return `/posts?${next.toString()}`;
   }
 
   function toggle(id: string) {
@@ -142,9 +144,10 @@ function PostsScreen() {
                 label: t.label,
                 count: counts?.[t.countKey],
                 attention: t.attention,
+                href: tabHref(t.key),
               }))}
               value={tabKey}
-              onChange={switchTab}
+              onChange={prepareTabChange}
             />
           }
         >

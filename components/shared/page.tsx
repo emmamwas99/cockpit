@@ -115,6 +115,7 @@ export interface CountTab<K extends string = string> {
   key: K;
   label: string;
   count?: number;
+  href?: string;
   /** Counts that mean "work waiting" stay highlighted even when not selected. */
   attention?: boolean;
 }
@@ -136,20 +137,14 @@ export function CountTabs<K extends string>({
       {tabs.map((tab) => {
         const active = tab.key === value;
         const highlighted = tab.attention && (tab.count ?? 0) > 0;
-        return (
-          <button
-            key={tab.key}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(tab.key)}
-            className={cn(
-              "flex shrink-0 items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-1 text-sm transition-colors",
-              active
-                ? "border-primary font-medium text-foreground"
-                : "border-transparent text-muted hover:text-foreground",
-            )}
-          >
+        const tabClassName = cn(
+          "flex shrink-0 items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-1 text-sm transition-colors",
+          active
+            ? "border-primary font-medium text-foreground"
+            : "border-transparent text-muted hover:text-foreground",
+        );
+        const contents = (
+          <>
             {tab.label}
             {tab.count !== undefined && (
               <span
@@ -163,6 +158,34 @@ export function CountTabs<K extends string>({
                 {formatNumber(tab.count)}
               </span>
             )}
+          </>
+        );
+
+        if (tab.href) {
+          return (
+            <Link
+              key={tab.key}
+              href={tab.href}
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(tab.key)}
+              className={tabClassName}
+            >
+              {contents}
+            </Link>
+          );
+        }
+
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(tab.key)}
+            className={tabClassName}
+          >
+            {contents}
           </button>
         );
       })}
