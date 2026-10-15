@@ -20,6 +20,11 @@ export function formatNumber(value: number | undefined | null): string {
   return value.toLocaleString();
 }
 
+/** Shillings as prices show them everywhere: "KES 1,200". */
+export function formatKes(amount: number): string {
+  return `KES ${Math.round(amount).toLocaleString("en-KE")}`;
+}
+
 export function formatPrice(price?: { amount: number; currency: string } | null): string {
   if (!price) return "—";
   return `${price.currency} ${price.amount.toLocaleString()}`;

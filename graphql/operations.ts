@@ -1,5 +1,13 @@
 import { gql, type TypedDocumentNode } from "@apollo/client";
 import type {
+  AdminBoostCounts,
+  AdminContentCounts,
+  AdminConversationCounts,
+  AdminUserCounts,
+  AdminAppRatingOverview,
+  AdminAppRatingSort,
+  AppRatingRaterSegment,
+  PaginatedAdminAppRatings,
   AdminConversationAnalytics,
   AdminConversationQueue,
   AdminCreatorDetail,
@@ -123,9 +131,11 @@ const SIGNUP_DEVICE_FIELDS = gql`
   }
 `;
 
-const ADMIN_CONTENT_FIELDS = gql`
+/** Exported so detail panels can follow a post through the cache (useFragment). */
+export const ADMIN_CONTENT_FIELDS = gql`
   fragment AdminContentFields on Content {
     id
+    listingNumber
     title
     slug
     caption
@@ -450,10 +460,10 @@ export const ADMIN_GROWTH_ANALYTICS: TypedDocumentNode<
 
 export const ADMIN_GROWTH_PULSE: TypedDocumentNode<
   { adminGrowthPulse: AdminGrowthPulse },
-  { days?: number; months?: number }
+  { days?: number; months?: number; from?: string | null; to?: string | null }
 > = gql`
-  query AdminGrowthPulse($days: Int, $months: Int) {
-    adminGrowthPulse(days: $days, months: $months) {
+  query AdminGrowthPulse($days: Int, $months: Int, $from: String, $to: String) {
+    adminGrowthPulse(days: $days, months: $months, from: $from, to: $to) {
       from
       to
       previousFrom
@@ -563,6 +573,7 @@ export const ADMIN_LOCATION_ANALYTICS: TypedDocumentNode<
         saveRatePercent
         topCategory
         latestPostAt
+        peopleCount
       }
     }
   }
@@ -1022,6 +1033,7 @@ export const ADMIN_USERS: TypedDocumentNode<
     source?: string | null;
     medium?: AttributionMedium | null;
     socialProof?: boolean | null;
+    verified?: boolean | null;
   }
 > = gql`
   query AdminUsers(
@@ -1033,6 +1045,7 @@ export const ADMIN_USERS: TypedDocumentNode<
     $source: String
     $medium: AttributionMedium
     $socialProof: Boolean
+    $verified: Boolean
   ) {
     adminUsers(
       page: $page
@@ -1043,10 +1056,12 @@ export const ADMIN_USERS: TypedDocumentNode<
       source: $source
       medium: $medium
       socialProof: $socialProof
+      verified: $verified
     ) {
       data {
         ...AdminUserFields
         ...SignupDeviceFields
+        ...CreatorReferralFields
       }
       meta {
         page
@@ -1060,6 +1075,7 @@ export const ADMIN_USERS: TypedDocumentNode<
   }
   ${ADMIN_USER_FIELDS}
   ${SIGNUP_DEVICE_FIELDS}
+  ${CREATOR_REFERRAL_FIELDS}
 `;
 
 export const ADMIN_UPDATE_USER_ROLES: TypedDocumentNode<
@@ -1457,7 +1473,7 @@ const CATEGORY_FIELDS = gql`
     name
     slug
     description
-    icon
+    imageUrl
     parentId
     depth
     sortOrder
@@ -1494,7 +1510,7 @@ export const CREATE_CATEGORY: TypedDocumentNode<
       name: string;
       slug: string;
       description?: string;
-      icon?: string;
+      imageUrl?: string | null;
       parentId?: string;
       sortOrder?: number;
     };
@@ -1516,7 +1532,7 @@ export const UPDATE_CATEGORY: TypedDocumentNode<
       name?: string;
       slug?: string;
       description?: string;
-      icon?: string;
+      imageUrl?: string | null;
       sortOrder?: number;
     };
   }
@@ -1757,4 +1773,191 @@ export const ADMIN_RESTORE_REFERRAL: TypedDocumentNode<
     }
   }
   ${REFERRAL_FIELDS}
+`;
+
+// ── App ratings ──────────────────────────────────────────────────────────────
+
+export const ADMIN_APP_RATINGS: TypedDocumentNode<
+  { adminAppRatings: PaginatedAdminAppRatings },
+  {
+    page?: number;
+    limit?: number;
+    stars?: number[] | null;
+    segment?: AppRatingRaterSegment | null;
+    hasComment?: boolean | null;
+    search?: string | null;
+    sort?: AdminAppRatingSort | null;
+  }
+> = gql`
+  query AdminAppRatings(
+    $page: Int
+    $limit: Int
+    $stars: [Int!]
+    $segment: AppRatingRaterSegment
+    $hasComment: Boolean
+    $search: String
+    $sort: AdminAppRatingSort
+  ) {
+    adminAppRatings(
+      page: $page
+      limit: $limit
+      stars: $stars
+      segment: $segment
+      hasComment: $hasComment
+      search: $search
+      sort: $sort
+    ) {
+      data {
+        rating {
+          id
+          userId
+          stars
+          comment
+          createdAt
+          updatedAt
+        }
+        rater {
+          ...AdminUserFields
+          ...SignupDeviceFields
+        }
+        segment
+        shop {
+          listingCount
+          liveListingCount
+          inReviewListingCount
+          blockedListingCount
+          totalViews
+          totalSaves
+          lastPostedAt
+          inquiriesReceived
+          dealsClosed
+          followerCount
+        }
+        conversationsStarted
+        daysOnShopiAtRating
+        revisedAt
+      }
+      meta {
+        page
+        limit
+        total
+        totalPages
+        hasNextPage
+        hasPrevPage
+      }
+    }
+  }
+  ${ADMIN_USER_FIELDS}
+  ${SIGNUP_DEVICE_FIELDS}
+`;
+
+export const ADMIN_APP_RATING_OVERVIEW: TypedDocumentNode<
+  { adminAppRatingOverview: AdminAppRatingOverview },
+  { days?: number }
+> = gql`
+  query AdminAppRatingOverview($days: Int) {
+    adminAppRatingOverview(days: $days) {
+      allTime {
+        average
+        total
+        distribution
+      }
+      withCommentCount
+      satisfiedPercent
+      unhappyCount
+      days
+      windowCount
+      windowAverage
+      previousWindowCount
+      previousWindowAverage
+      daily {
+        date
+        count
+      }
+      segments {
+        segment
+        count
+        average
+        distribution
+      }
+      sellerTraction {
+        key
+        label
+        count
+        average
+      }
+      tenure {
+        key
+        label
+        count
+        average
+      }
+    }
+  }
+`;
+
+// ── Tab counts ───────────────────────────────────────────────────────────────
+
+export const ADMIN_CONTENT_COUNTS: TypedDocumentNode<
+  { adminContentCounts: AdminContentCounts },
+  { search?: string | null; creatorId?: string | null }
+> = gql`
+  query AdminContentCounts($search: String, $creatorId: String) {
+    adminContentCounts(search: $search, creatorId: $creatorId) {
+      all
+      pendingReview
+      active
+      processing
+      underReview
+      rejected
+      removed
+      failed
+      reported
+    }
+  }
+`;
+
+export const ADMIN_USER_COUNTS: TypedDocumentNode<
+  { adminUserCounts: AdminUserCounts },
+  { search?: string | null }
+> = gql`
+  query AdminUserCounts($search: String) {
+    adminUserCounts(search: $search) {
+      all
+      sellers
+      admins
+      verified
+      suspended
+    }
+  }
+`;
+
+export const ADMIN_CONVERSATION_COUNTS: TypedDocumentNode<
+  { adminConversationCounts: AdminConversationCounts },
+  { search?: string | null }
+> = gql`
+  query AdminConversationCounts($search: String) {
+    adminConversationCounts(search: $search) {
+      all
+      sellerNeedsReply
+      buyerNeedsReply
+      reported
+      openDeals
+      closedDeals
+    }
+  }
+`;
+
+export const ADMIN_BOOST_COUNTS: TypedDocumentNode<
+  { adminBoostCounts: AdminBoostCounts },
+  { tier?: BoostTier | null }
+> = gql`
+  query AdminBoostCounts($tier: BoostTier) {
+    adminBoostCounts(tier: $tier) {
+      all
+      active
+      expired
+      cancelled
+    }
+  }
 `;

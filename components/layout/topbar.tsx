@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMutation } from "@apollo/client/react";
-import { LogOut, Moon, Sun } from "lucide-react";
+import { ChevronDown, LogOut, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { LOGOUT } from "@/graphql/operations";
 import { useAuthStore } from "@/stores/auth";
@@ -12,43 +11,24 @@ import { displayName } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
-
-const TITLES: Record<string, string> = {
-  "/": "Overview",
-  "/moderation": "Moderation",
-  "/posts": "Posts",
-  "/boosts": "Boosts",
-  "/referrals": "Referrals",
-  "/users": "Users",
-  "/creators": "Creators",
-  "/social-proof": "Social proof",
-  "/growth": "Growth",
-  "/categories": "Categories",
-  "/conversations": "Conversations",
-  "/team": "Shopi team",
-  "/locations": "Locations",
-  "/system": "System",
-};
+import { Brand } from "@/components/layout/sidebar";
 
 export function Topbar() {
   const router = useRouter();
-  const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggle);
-
-  const [logout, { loading: loggingOut }] = useMutation(LOGOUT);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [logout] = useMutation(LOGOUT);
 
   async function handleLogout() {
     try {
@@ -56,71 +36,57 @@ export function Topbar() {
     } catch {
       // Best-effort server-side revoke; local sign-out always proceeds.
     } finally {
-      setConfirmOpen(false);
       clearAuth();
       toast.success("Signed out");
       router.replace("/login");
     }
   }
 
-  const title =
-    TITLES[pathname] ??
-    Object.entries(TITLES).find(([href]) => href !== "/" && pathname.startsWith(href))?.[1] ??
-    "Dashboard";
+  const name = displayName(user);
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur md:px-6">
-      <div className="flex items-center gap-2">
+    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between border-b border-border bg-elevated/95 px-4 backdrop-blur md:px-6">
+      <div className="flex items-center gap-2 md:hidden">
         <MobileNav />
-        <h1 className="text-lg font-bold text-foreground">{title}</h1>
+        <Brand />
       </div>
+      <div className="hidden md:block" />
 
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
-          {theme === "dark" ? <Sun /> : <Moon />}
-        </Button>
-
-        <div className="flex items-center gap-2 rounded-full border border-border py-1 pl-1 pr-3">
-          <Avatar src={user?.profile?.avatar} name={displayName(user)} className="size-7" />
-          <span className="hidden max-w-[140px] truncate text-sm font-medium text-foreground sm:block">
-            {displayName(user)}
-          </span>
-        </div>
-
+      <div className="flex items-center gap-1">
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setConfirmOpen(true)}
-          aria-label="Sign out"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
-          <LogOut />
+          {theme === "dark" ? <Sun /> : <Moon />}
         </Button>
-      </div>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Sign out</DialogTitle>
-            <DialogDescription>
-              You&apos;ll be returned to the login screen and any unsaved changes on this page will
-              be lost.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
               type="button"
-              variant="secondary"
-              onClick={() => void handleLogout()}
-              loading={loggingOut}
+              className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
-              Sign out
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <Avatar src={user?.profile?.avatar} name={name} className="size-7" />
+              <span className="hidden max-w-36 truncate text-sm font-medium text-foreground sm:block">
+                {name}
+              </span>
+              <ChevronDown className="size-4 text-muted" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <p className="truncate text-sm font-medium text-foreground">{name}</p>
+              {user?.email && <p className="truncate text-xs text-muted">{user.email}</p>}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => void handleLogout()}>
+              <LogOut /> Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }

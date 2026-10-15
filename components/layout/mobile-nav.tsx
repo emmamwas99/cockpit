@@ -1,126 +1,39 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import {
-  Activity,
-  ChartNoAxesCombined,
-  Clapperboard,
-  FolderTree,
-  LayoutDashboard,
-  Map,
-  Menu,
-  Megaphone,
-  MessagesSquare,
-  ShieldCheck,
-  Siren,
-  Trophy,
-  Rocket,
-  Sparkles,
-  Users,
-  Gift,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { NavBadge, navBadgeFor } from "@/components/layout/sidebar";
-import { useTeamUnreadThreads } from "@/components/team/team-inbox-sync";
-import { usePendingReviewCount } from "@/components/posts/pending-review-sync";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { useState } from "react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const NAV_ITEMS = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
-  { href: "/moderation", label: "Moderation", icon: Siren },
-  { href: "/posts", label: "Posts", icon: Clapperboard },
-  { href: "/boosts", label: "Boosts", icon: Rocket },
-  { href: "/referrals", label: "Referrals", icon: Gift },
-  { href: "/users", label: "Users", icon: Users },
-  { href: "/creators", label: "Creators", icon: Trophy },
-  { href: "/social-proof", label: "Social proof", icon: Sparkles },
-  { href: "/growth", label: "Growth", icon: ChartNoAxesCombined },
-  { href: "/categories", label: "Categories", icon: FolderTree },
-  { href: "/conversations", label: "Conversations", icon: MessagesSquare },
-  { href: "/team", label: "Shopi team", icon: Megaphone },
-  { href: "/locations", label: "Locations", icon: Map },
-  { href: "/system", label: "System", icon: Activity },
-];
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Brand, NavLinks, useNavCounts } from "./sidebar";
 
 export function MobileNav() {
-  const pathname = usePathname();
-  const teamUnread = useTeamUnreadThreads();
-  const pendingReview = usePendingReviewCount();
-  const pending = [
-    teamUnread > 0 && `${teamUnread} unread Shopi team replies`,
-    pendingReview > 0 && `${pendingReview} posts pending review`,
-  ].filter(Boolean);
+  const [open, setOpen] = useState(false);
+  const counts = useNavCounts();
+  const waiting = counts.pendingReview + counts.teamUnread;
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
           className="relative md:hidden"
-          aria-label={
-            pending.length > 0
-              ? `Open navigation menu, ${pending.join(", ")}`
-              : "Open navigation menu"
-          }
+          aria-label={waiting > 0 ? `Open menu, ${waiting} items waiting` : "Open menu"}
         >
           <Menu />
-          {/* The nav is hidden behind this button on phones, so flag badges here too. */}
-          {pending.length > 0 && (
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" />
-          )}
+          {/* The menu hides behind this button on phones, so flag its badges here. */}
+          {waiting > 0 && <span className="absolute right-2 top-2 size-2 rounded-full bg-primary" />}
         </Button>
-      </DialogTrigger>
-
-      <DialogContent className="left-0 top-0 h-screen w-[88vw] max-w-[320px] translate-x-0 translate-y-0 rounded-none border-0 border-r border-border bg-elevated p-0 shadow-2xl md:hidden">
-        <DialogHeader className="border-b border-border px-5 pb-4 pt-5">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-full bg-primary text-on-brand">
-              <ShieldCheck className="size-5" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-bold">Shopi Admin</DialogTitle>
-              <DialogDescription>Platform control and operations</DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <nav className="space-y-1 px-3 py-4">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-            const badge = navBadgeFor(href, { teamUnread, pendingReview });
-            return (
-              <DialogClose asChild key={href}>
-                <Link
-                  href={href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-colors",
-                    active
-                      ? "bg-primary-soft text-primary-strong"
-                      : "text-muted hover:bg-subtle hover:text-foreground",
-                  )}
-                >
-                  <Icon className="size-4.5" />
-                  {label}
-                  {badge && badge.count > 0 && <NavBadge count={badge.count} label={badge.label} />}
-                </Link>
-              </DialogClose>
-            );
-          })}
-        </nav>
-
-        <p className="px-5 pb-5 pt-2 text-xs text-placeholder">Shopi social commerce</p>
-      </DialogContent>
-    </Dialog>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-[85vw] max-w-72 sm:max-w-72">
+        <SheetTitle className="sr-only">Menu</SheetTitle>
+        <div className="flex h-14 shrink-0 items-center px-5">
+          <Brand />
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 pb-6 pt-2">
+          <NavLinks onNavigate={() => setOpen(false)} />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

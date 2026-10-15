@@ -11,11 +11,11 @@
      The single knob for text size across the whole dashboard.
      Everything is rem-based, so this scales all text (and spacing)
      proportionally. 100% = browser default (16px base).
-       112.5% = 18px base   (current)
+       100%   = 16px base   (current — standard admin density, 14px body)
        106.25% = 17px base
-       125%   = 20px base
+       112.5% = 18px base
      Change this one value and reload — nothing else to touch. */
-  --ui-scale: 112.5%;
+  --ui-scale: 100%;
 
   /* Brand — space-separated channels so `rgb(var(--x) / alpha)` works.
      Identical to the Shopi web app palette. */
@@ -27,6 +27,9 @@
   --color-bg: 255 255 255;
   --color-bg-subtle: 248 248 250;
   --color-bg-elevated: 255 255 255;
+  /* The page behind the cards: gray in light mode so white cards read as
+     panels; the darkest surface in dark mode so cards lift off it. */
+  --canvas: 245 246 248;
 
   /* Borders */
   --color-border: 226 226 232;
@@ -50,10 +53,12 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06);
 
-  /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
+  /* Radius — Tailwind's rounded-sm/md/lg read these, so they set the corner
+     scale for every control: 4px tags, 6px menus and inputs' inner parts,
+     8px buttons and fields. Cards use rounded-xl (12px). */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
   --radius-full: 9999px;
 }
 
@@ -78,6 +83,12 @@
   --chart-neutral-soft: #c9c7c0;
   --chart-violet: #4a3aa7;
   --chart-grid: rgb(var(--color-border) / 0.6);
+  /* Diverging pair for sentiment (star ratings): red ↔ blue poles around the
+     neutral gray. Poles clear CVD ΔE 21 against the midpoint; the gray sits
+     under 3:1 by design, so sentiment bars always carry visible labels. */
+  --chart-negative: #e34948;
+  --chart-positive: #2a78d6;
+  --chart-midpoint: var(--chart-neutral-soft);
 }
 
 .dark {
@@ -95,12 +106,16 @@
   --chart-neutral: #85837c;
   --chart-neutral-soft: #52514e;
   --chart-violet: #9085e9;
+  --chart-negative: #e66767;
+  --chart-positive: #3987e5;
+  --chart-midpoint: var(--chart-neutral-soft);
 }
 
 .dark {
   --color-bg: 8 8 10;
   --color-bg-subtle: 20 20 24;
   --color-bg-elevated: 14 14 17;
+  --canvas: 8 8 10;
 
   --color-border: 40 40 46;
   --color-border-strong: 62 62 72;
@@ -131,6 +146,7 @@
   --color-accent-soft: rgb(var(--brand-accent) / 0.12);
 
   --color-background: rgb(var(--color-bg));
+  --color-canvas: rgb(var(--canvas));
   --color-surface: rgb(var(--color-bg-subtle));
   --color-elevated: rgb(var(--color-bg-elevated));
   --color-subtle: rgb(var(--color-subtle));

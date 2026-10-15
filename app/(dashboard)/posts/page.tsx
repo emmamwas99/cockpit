@@ -1,343 +1,359 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useApolloClient, useQuery } from "@apollo/client/react";
-import { Search, Flag, RefreshCw, Sparkles, PenLine } from "lucide-react";
-import { ADMIN_CONTENT, ADMIN_PENDING_REVIEW_COUNT } from "@/graphql/operations";
-import { ContentCreationMethod, ContentStatus, type AdminContent } from "@/graphql/types";
-import { formatDate, formatRelative, formatNumber, formatPrice, displayName } from "@/lib/format";
-import { boostRunLabel } from "@/lib/boost";
-import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { Avatar } from "@/components/ui/avatar";
+import { toast } from "sonner";
+import { Check, Clapperboard, RefreshCw, X } from "lucide-react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { StatusBadge } from "@/components/shared/status-badge";
+  ADMIN_CONTENT,
+  ADMIN_CONTENT_COUNTS,
+  APPROVE_CONTENT,
+  REJECT_CONTENT,
+} from "@/graphql/operations";
+import type { AdminContent } from "@/graphql/types";
+import { displayName, formatDate, formatNumber, formatRelative } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination } from "@/components/shared/pagination";
-import { PostThumb } from "@/components/posts/post-thumb";
-import { PostTypeBadge, ReferredBadge, TiktokImportBadge } from "@/components/posts/post-badges";
-import { usePendingReviewCount } from "@/components/posts/pending-review-sync";
-import { PostActions } from "@/components/posts/post-actions";
-import { PostDetailDialog } from "@/components/posts/post-detail-dialog";
+import {
+  CountTabs,
+  EmptyState,
+  ListToolbar,
+  PageHeader,
+  Person,
+  SearchInput,
+  TableSkeleton,
+  useDebouncedValue,
+} from "@/components/shared/page";
+import { PostCell } from "@/components/posts/post-thumb";
+import { PostRowActions, POST_REFETCH } from "@/components/posts/post-actions";
+import { PostSheet, PostStatusLine } from "@/components/posts/post-detail";
+import { POST_TABS, postTab, type PostTabKey } from "@/components/posts/post-tabs";
 import { MediaRecoveryButton } from "@/components/posts/media-recovery-button";
-import { ViewPostLink } from "@/components/posts/view-post-link";
-
-type TabKey = "pending" | "all" | ContentStatus;
-
-const TABS: { key: TabKey; label: string; status?: ContentStatus }[] = [
-  { key: "pending", label: "Pending", status: ContentStatus.PENDING_REVIEW },
-  { key: "all", label: "All posts" },
-  { key: ContentStatus.ACTIVE, label: "Live", status: ContentStatus.ACTIVE },
-  { key: ContentStatus.PROCESSING, label: "Processing", status: ContentStatus.PROCESSING },
-  { key: ContentStatus.UNDER_REVIEW, label: "Hidden", status: ContentStatus.UNDER_REVIEW },
-  { key: ContentStatus.REJECTED, label: "Rejected", status: ContentStatus.REJECTED },
-  { key: ContentStatus.REMOVED, label: "Removed", status: ContentStatus.REMOVED },
-  { key: ContentStatus.FAILED, label: "Failed", status: ContentStatus.FAILED },
-];
 
 const PAGE_SIZE = 20;
-const SEARCH_DEBOUNCE_MS = 350;
 
-/**
- * How the listing got written: Shopi Agent or the seller. (Which create route
- * the post took — TikTok, video or image — is its own column.) Posts published
- * before the field existed show a dash; defaulting them to "Manual" would
- * invent a number.
- */
-function CreationMethodBadge({ post }: { post: AdminContent }) {
-  if (post.creationMethod === ContentCreationMethod.AGENT) {
-    return (
-      <Badge variant="accent" className="flex w-fit items-center gap-1">
-        <Sparkles className="size-3.5" />
-        Agent
-      </Badge>
-    );
-  }
-
-  if (post.creationMethod === ContentCreationMethod.MANUAL) {
-    return (
-      <span className="flex items-center gap-1.5 text-sm text-muted">
-        <PenLine className="size-3.5" />
-        Manual
-      </span>
-    );
-  }
-
+export default function PostsPage() {
   return (
-    <span className="text-sm text-muted" title="Posted before this was recorded">
-      —
-    </span>
+    <Suspense>
+      <PostsScreen />
+    </Suspense>
   );
 }
 
-export default function PostsPage() {
-  const [tab, setTab] = useState<TabKey>("pending");
+function PostsScreen() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const client = useApolloClient();
+
+  const tabKey: PostTabKey = postTab(params.get("tab"))?.key ?? "pending";
+  const tab = postTab(tabKey)!;
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [submittedSearch, setSubmittedSearch] = useState("");
-  const [selected, setSelected] = useState<AdminContent | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState(params.get("q") ?? "");
+  const search = useDebouncedValue(searchInput.trim());
+  const [opened, setOpened] = useState<AdminContent | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
 
-  const activeTab = TABS.find((t) => t.key === tab) ?? TABS[0];
+  const { data: countData } = useQuery(ADMIN_CONTENT_COUNTS, {
+    variables: { search: search || null },
+    fetchPolicy: "cache-and-network",
+  });
+  const counts = countData?.adminContentCounts;
 
-  const { data, loading, refetch } = useQuery(ADMIN_CONTENT, {
+  const { data, loading } = useQuery(ADMIN_CONTENT, {
     variables: {
       page,
       limit: PAGE_SIZE,
-      status: activeTab.status ?? null,
-      search: submittedSearch || null,
+      status: tab.status ?? null,
+      reported: tab.reported ?? null,
+      search: search || null,
     },
+    fetchPolicy: "cache-and-network",
   });
-
-  const client = useApolloClient();
-  const pendingCount = usePendingReviewCount();
-
   const posts = useMemo(() => data?.adminContent.data ?? [], [data]);
   const meta = data?.adminContent.meta;
 
-  // Keep the detail dialog's post in sync with refetched data after an action.
-  const selectedFresh = useMemo(
-    () => (selected ? (posts.find((p) => p.id === selected.id) ?? selected) : null),
-    [selected, posts],
-  );
+  // Bulk approve/reject is for the review queue, where posts arrive in batches.
+  const bulk = tabKey === "pending";
+  const selectedPosts = posts.filter((post) => selected.has(post.id));
+  const allSelected = posts.length > 0 && posts.every((post) => selected.has(post.id));
 
-  function switchTab(next: TabKey) {
-    setTab(next);
+  function switchTab(key: PostTabKey) {
+    const next = new URLSearchParams(params.toString());
+    next.set("tab", key);
+    router.replace(`/posts?${next.toString()}`, { scroll: false });
     setPage(1);
+    setSelected(new Set());
   }
 
-  useEffect(() => {
-    const nextSearch = search.trim();
-    const handle = window.setTimeout(() => {
-      setSubmittedSearch((current) => {
-        if (current === nextSearch) return current;
-        setPage(1);
-        return nextSearch;
-      });
-    }, SEARCH_DEBOUNCE_MS);
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
-    return () => window.clearTimeout(handle);
-  }, [search]);
-
-  async function handleRefresh() {
+  async function refresh() {
     setRefreshing(true);
     try {
-      await Promise.all([
-        refetch({
-          page,
-          limit: PAGE_SIZE,
-          status: activeTab.status ?? null,
-          search: submittedSearch || null,
-        }),
-        client.refetchQueries({ include: [ADMIN_PENDING_REVIEW_COUNT] }),
-      ]);
+      await client.refetchQueries({ include: POST_REFETCH });
     } finally {
       setRefreshing(false);
     }
   }
 
   return (
-    <div className="space-y-4">
-      {/* Tabs + search */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-1.5">
-          {TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => switchTab(key)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors cursor-pointer",
-                tab === key
-                  ? "bg-primary text-on-brand"
-                  : "bg-subtle text-muted hover:text-foreground",
-              )}
-            >
-              {label}
-              {key === "pending" && pendingCount > 0 && (
-                <span
-                  className={cn(
-                    "rounded-full px-1.5 text-xs font-bold",
-                    tab === key ? "bg-white/25" : "bg-primary text-on-brand",
-                  )}
-                >
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+    <>
+      <PageHeader
+        title="Posts"
+        description="Review new listings and manage every post on Shopi."
+        actions={
+          <>
+            <MediaRecoveryButton />
+            <Button variant="outline" onClick={() => void refresh()} loading={refreshing}>
+              {!refreshing && <RefreshCw />} Refresh
+            </Button>
+          </>
+        }
+      />
 
-        <div className="flex w-full items-center gap-2 lg:w-auto">
-          <div className="relative flex-1 lg:w-72 lg:flex-none">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search title or caption…"
-              className="pl-9"
+      <Card className="overflow-hidden">
+        <ListToolbar
+          tabs={
+            <CountTabs
+              tabs={POST_TABS.map((t) => ({
+                key: t.key,
+                label: t.label,
+                count: counts?.[t.countKey],
+                attention: t.attention,
+              }))}
+              value={tabKey}
+              onChange={switchTab}
             />
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => void handleRefresh()}
-            loading={refreshing}
-          >
-            {!refreshing && <RefreshCw />}
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </Button>
-          <MediaRecoveryButton />
-        </div>
-      </div>
+          }
+        >
+          <SearchInput
+            value={searchInput}
+            onChange={(value) => {
+              setSearchInput(value);
+              setPage(1);
+            }}
+            placeholder="Title, listing no. or seller"
+          />
+        </ListToolbar>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {loading && posts.length === 0 ? (
-            <div className="space-y-2 p-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : posts.length === 0 ? (
-            <p className="py-16 text-center text-sm text-muted">
-              {submittedSearch
+        {bulk && selectedPosts.length > 0 && (
+          <BulkBar posts={selectedPosts} onDone={() => setSelected(new Set())} />
+        )}
+
+        {loading && !data ? (
+          <TableSkeleton />
+        ) : posts.length === 0 ? (
+          <EmptyState
+            icon={Clapperboard}
+            title={
+              search
                 ? "No posts match your search"
-                : tab === "pending"
-                  ? "Nothing waiting for approval — all caught up 🎉"
-                  : "No posts here yet"}
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Post</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>TikTok import</TableHead>
-                  <TableHead>Creator</TableHead>
-                  <TableHead>Referred</TableHead>
-                  <TableHead>Written by</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Engagement</TableHead>
-                  <TableHead>Posted</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                : tabKey === "pending"
+                  ? "All caught up"
+                  : "No posts here"
+            }
+            description={
+              !search && tabKey === "pending" ? "Nothing is waiting for review right now." : undefined
+            }
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {bulk && (
+                  <TableHead className="hidden w-10 pr-0 sm:table-cell">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all on this page"
+                      checked={allSelected}
+                      onChange={() =>
+                        setSelected(allSelected ? new Set() : new Set(posts.map((post) => post.id)))
+                      }
+                      className="size-4 cursor-pointer accent-primary"
+                    />
+                  </TableHead>
+                )}
+                <TableHead>Listing</TableHead>
+                <TableHead className="hidden lg:table-cell">Seller</TableHead>
+                <TableHead className="hidden sm:table-cell">Status</TableHead>
+                <TableHead className="hidden text-right md:table-cell">Views</TableHead>
+                <TableHead className="hidden md:table-cell">Posted</TableHead>
+                <TableHead className="w-24" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {posts.map((post) => (
+                <TableRow
+                  key={post.id}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setOpened(post);
+                    setSheetOpen(true);
+                  }}
+                >
+                  {bulk && (
+                    <TableCell className="hidden w-10 pr-0 sm:table-cell" onClick={(event) => event.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${post.title}`}
+                        checked={selected.has(post.id)}
+                        onChange={() => toggle(post.id)}
+                        className="size-4 cursor-pointer accent-primary"
+                      />
+                    </TableCell>
+                  )}
+                  <TableCell className="max-w-[12rem] sm:max-w-80">
+                    <PostCell post={post} />
+                    {/* Phones drop the status column; keep the status with the post. */}
+                    <div className="mt-1.5 pl-[52px] sm:hidden">
+                      <PostStatusLine post={post} />
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden max-w-56 lg:table-cell">
+                    <Person
+                      size="sm"
+                      name={displayName(post.creator)}
+                      avatar={post.creator?.profile?.avatar}
+                      secondary={post.creator?.username ? `@${post.creator.username}` : undefined}
+                    />
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <PostStatusLine post={post} />
+                  </TableCell>
+                  <TableCell className="hidden text-right tabular-nums text-muted md:table-cell">
+                    {formatNumber(post.stats.views)}
+                  </TableCell>
+                  <TableCell className="hidden whitespace-nowrap text-muted md:table-cell" title={formatDate(post.createdAt)}>
+                    {formatRelative(post.createdAt)}
+                  </TableCell>
+                  <TableCell>
+                    <PostRowActions post={post} />
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {posts.map((post) => (
-                  <TableRow
-                    key={post.id}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setSelected(post);
-                      setDetailOpen(true);
-                    }}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <PostThumb post={post} />
-                        <div className="min-w-0 max-w-[220px]">
-                          <div className="flex items-center gap-1">
-                            <p className="truncate text-sm font-medium text-foreground">
-                              {post.title}
-                            </p>
-                            <ViewPostLink post={post} />
-                          </div>
-                          {post.moderation.isReported && (
-                            <p className="flex items-center gap-0.5 text-xs text-error">
-                              <Flag className="size-3" />
-                              {post.moderation.reportCount}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <PostTypeBadge post={post} />
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <TiktokImportBadge post={post} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar
-                          src={post.creator?.profile?.avatar}
-                          name={displayName(post.creator)}
-                          className="size-7"
-                        />
-                        <span className="max-w-[140px] truncate text-sm text-foreground">
-                          {displayName(post.creator)}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <ReferredBadge post={post} />
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <CreationMethodBadge post={post} />
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm">
-                      {formatPrice(post.price)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-1">
-                        <StatusBadge status={post.status} />
-                        {post.status === ContentStatus.PROCESSING && post.approval.isApproved && (
-                          <Badge variant="secondary">approved · awaiting media</Badge>
-                        )}
-                        {post.status === ContentStatus.ACTIVE && !post.isLive && (
-                          <Badge variant="secondary">not live</Badge>
-                        )}
-                        {post.boost?.isBoosted && (
-                          <div className="flex flex-col items-start gap-0.5">
-                            <Badge variant="accent" className="capitalize">
-                              {post.boost.tier} boost ×{post.boost.multiplier}
-                            </Badge>
-                            <span
-                              className="text-[11px] text-muted"
-                              title={
-                                post.boost.expiresAt
-                                  ? `Ends ${formatDate(post.boost.expiresAt)}`
-                                  : undefined
-                              }
-                            >
-                              {boostRunLabel(post.boost)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-muted">
-                      {formatNumber(post.stats.views)} views · {formatNumber(post.stats.saves)} saves
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-muted">
-                      {formatRelative(post.createdAt)}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <PostActions post={post} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        {meta && meta.totalPages > 1 && (
+          <div className="border-t border-border px-4 pb-3">
+            <Pagination meta={meta} onPageChange={setPage} />
+          </div>
+        )}
       </Card>
 
-      {meta && <Pagination meta={meta} onPageChange={setPage} />}
+      <PostSheet post={opened} open={sheetOpen} onOpenChange={setSheetOpen} />
+    </>
+  );
+}
 
-      <PostDetailDialog post={selectedFresh} open={detailOpen} onOpenChange={setDetailOpen} />
+/** Approve or reject every selected post in the review queue at once. */
+function BulkBar({ posts, onDone }: { posts: AdminContent[]; onDone: () => void }) {
+  const client = useApolloClient();
+  const [working, setWorking] = useState<"approve" | "reject" | null>(null);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  async function run(kind: "approve" | "reject") {
+    setWorking(kind);
+    const results = await Promise.allSettled(
+      posts.map((post) =>
+        kind === "approve"
+          ? client.mutate({ mutation: APPROVE_CONTENT, variables: { contentId: post.id } })
+          : client.mutate({
+              mutation: REJECT_CONTENT,
+              variables: { contentId: post.id, reason: reason.trim() },
+            }),
+      ),
+    );
+    await client.refetchQueries({ include: POST_REFETCH });
+    setWorking(null);
+
+    const failed = results.filter((result) => result.status === "rejected").length;
+    const done = results.length - failed;
+    const verb = kind === "approve" ? "Approved" : "Rejected";
+    if (failed === 0) toast.success(`${verb} ${done} post${done === 1 ? "" : "s"}`);
+    else toast.error(`${verb} ${done}, ${failed} failed — try those again`);
+    setRejectOpen(false);
+    setReason("");
+    onDone();
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-primary-soft/50 px-4 py-2">
+      <p className="mr-auto text-sm font-medium text-foreground">{posts.length} selected</p>
+      <Button size="sm" onClick={() => void run("approve")} loading={working === "approve"} disabled={!!working}>
+        {working !== "approve" && <Check />} Approve
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="text-error hover:bg-error-soft"
+        onClick={() => setRejectOpen(true)}
+        disabled={!!working}
+      >
+        <X /> Reject
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onDone} disabled={!!working}>
+        Clear
+      </Button>
+
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Reject {posts.length} post{posts.length === 1 ? "" : "s"}?
+            </DialogTitle>
+            <DialogDescription>Each seller is emailed this reason.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="bulk-reject-reason">Reason</Label>
+            <Textarea
+              id="bulk-reject-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="e.g. Photos don't show the product clearly"
+              rows={3}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRejectOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void run("reject")}
+              loading={working === "reject"}
+              disabled={!reason.trim()}
+            >
+              Reject all
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

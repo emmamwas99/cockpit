@@ -226,6 +226,8 @@ export interface ContentLocation {
 
 export interface AdminContent {
   id: string;
+  /** Seller-facing marketplace number, e.g. SH-EL-00123. */
+  listingNumber: string;
   title: string;
   /** Public URL segment; null on posts from before slugs were backfilled. */
   slug?: string | null;
@@ -277,16 +279,17 @@ export interface AdminImpersonationPayload {
 
 // ── Boosts ───────────────────────────────────────────────────────────────────
 
+/** GraphQL sends enum keys over the wire (SILVER), not the API's stored values. */
 export enum BoostTier {
-  SILVER = "silver",
-  GOLD = "gold",
-  PLATINUM = "platinum",
+  SILVER = "SILVER",
+  GOLD = "GOLD",
+  PLATINUM = "PLATINUM",
 }
 
 export enum BoostStatus {
-  ACTIVE = "active",
-  EXPIRED = "expired",
-  CANCELLED = "cancelled",
+  ACTIVE = "ACTIVE",
+  EXPIRED = "EXPIRED",
+  CANCELLED = "CANCELLED",
 }
 
 /** A purchasable promotion package as advertised by the API. */
@@ -627,6 +630,8 @@ export interface AdminCountyPerformance {
   saveRatePercent: number;
   topCategory?: string | null;
   latestPostAt?: string | null;
+  /** People placed here by saved location, else first-session IP — demand. */
+  peopleCount: number;
 }
 
 export interface AdminLocationAnalytics {
@@ -790,7 +795,7 @@ export interface Category {
   name: string;
   slug: string;
   description?: string | null;
-  icon?: string | null;
+  imageUrl?: string | null;
   parentId?: string | null;
   depth: number;
   sortOrder: number;
@@ -944,4 +949,141 @@ export interface AdminReferralRewardRow {
   /** The seller's live listings right now. */
   liveListingCount: number;
   flags: ReferralFlag[];
+}
+
+// ── App ratings ──────────────────────────────────────────────────────────────
+
+/** SELLER holds the creator role; BUYER has messaged a seller; BROWSER neither. */
+export enum AppRatingRaterSegment {
+  SELLER = "SELLER",
+  BUYER = "BUYER",
+  BROWSER = "BROWSER",
+}
+
+export enum AdminAppRatingSort {
+  NEWEST = "NEWEST",
+  LOWEST = "LOWEST",
+  HIGHEST = "HIGHEST",
+}
+
+export interface AppRating {
+  id: string;
+  userId: string;
+  /** 1–5 */
+  stars: number;
+  comment?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A seller's storefront as it stands now. */
+export interface AdminRaterShop {
+  /** Drafts excluded. */
+  listingCount: number;
+  liveListingCount: number;
+  inReviewListingCount: number;
+  /** Rejected, removed or failed. */
+  blockedListingCount: number;
+  totalViews: number;
+  totalSaves: number;
+  lastPostedAt?: string | null;
+  inquiriesReceived: number;
+  dealsClosed: number;
+  followerCount: number;
+}
+
+export interface AdminAppRatingRow {
+  rating: AppRating;
+  /** Null when the account has since been deleted. */
+  rater?: AdminUser | null;
+  /** Null when the account is gone. */
+  segment?: AppRatingRaterSegment | null;
+  /** Sellers only. */
+  shop?: AdminRaterShop | null;
+  conversationsStarted: number;
+  daysOnShopiAtRating?: number | null;
+  /** Set when they came back and resubmitted after their first rating. */
+  revisedAt?: string | null;
+}
+
+export interface PaginatedAdminAppRatings {
+  data: AdminAppRatingRow[];
+  meta: PaginationMeta;
+}
+
+export interface AppRatingSummary {
+  average: number;
+  total: number;
+  /** Count per star level, one star first. */
+  distribution: number[];
+}
+
+export interface AdminAppRatingSegmentStat {
+  segment: AppRatingRaterSegment;
+  count: number;
+  average: number;
+  distribution: number[];
+}
+
+export interface AdminAppRatingBucket {
+  key: string;
+  label: string;
+  count: number;
+  average: number;
+}
+
+export interface AdminAppRatingOverview {
+  allTime: AppRatingSummary;
+  withCommentCount: number;
+  /** Share of 4–5★ ratings, 0–100. */
+  satisfiedPercent: number;
+  /** 1–2★ ratings. */
+  unhappyCount: number;
+  days: number;
+  windowCount: number;
+  windowAverage: number;
+  previousWindowCount: number;
+  previousWindowAverage: number;
+  daily: DailyCount[];
+  segments: AdminAppRatingSegmentStat[];
+  sellerTraction: AdminAppRatingBucket[];
+  tenure: AdminAppRatingBucket[];
+}
+
+// ── Tab counts ───────────────────────────────────────────────────────────────
+
+export interface AdminContentCounts {
+  all: number;
+  pendingReview: number;
+  active: number;
+  processing: number;
+  underReview: number;
+  rejected: number;
+  removed: number;
+  failed: number;
+  reported: number;
+}
+
+export interface AdminUserCounts {
+  all: number;
+  sellers: number;
+  admins: number;
+  verified: number;
+  suspended: number;
+}
+
+export interface AdminConversationCounts {
+  all: number;
+  sellerNeedsReply: number;
+  buyerNeedsReply: number;
+  reported: number;
+  openDeals: number;
+  closedDeals: number;
+}
+
+export interface AdminBoostCounts {
+  all: number;
+  active: number;
+  expired: number;
+  cancelled: number;
 }

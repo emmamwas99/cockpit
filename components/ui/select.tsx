@@ -8,7 +8,7 @@ function Select({ className, children, ...props }: React.SelectHTMLAttributes<HT
     <div className="relative">
       <select
         className={cn(
-          "h-9 w-full appearance-none rounded-lg border border-border bg-elevated pl-3 pr-8 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer",
+          "h-9 w-full appearance-none rounded-lg border border-border bg-elevated pl-3 pr-8 text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer",
           className,
         )}
         {...props}

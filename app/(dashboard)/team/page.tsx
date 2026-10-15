@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { toast } from "sonner";
-import { Filter, MessageSquarePlus, Search, Send, X } from "lucide-react";
+import { Filter, MessageSquarePlus, Send, X } from "lucide-react";
 import {
   ADMIN_MARK_TEAM_THREAD_READ,
   ADMIN_REPLY_TEAM_THREAD,
@@ -25,7 +25,6 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -38,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { Pagination } from "@/components/shared/pagination";
 import { ComposeTeamMessageDialog } from "@/components/team/compose-team-message-dialog";
+import { CountTabs, PageHeader, SearchInput } from "@/components/shared/page";
 
 type View = "replies" | "threads" | "sent";
 
@@ -338,50 +338,37 @@ export default function TeamMessagesPage() {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-1.5">
-          {tabs.map(({ key, label, badge }) => (
-            <button
-              key={key}
-              onClick={() => switchView(key)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors cursor-pointer",
-                view === key ? "bg-primary text-on-brand" : "bg-subtle text-muted hover:text-foreground",
-              )}
-            >
-              {label}
-              {badge ? (
-                <span
-                  className={cn(
-                    "rounded-full px-1.5 text-xs font-bold",
-                    view === key ? "bg-white/25" : "bg-primary text-on-brand",
-                  )}
-                >
-                  {badge}
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex w-full items-center gap-2 lg:w-auto">
-          {view !== "sent" && (
-            <div className="relative flex-1 lg:w-72 lg:flex-none">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, email, username…"
-                className="pl-9"
-              />
-            </div>
-          )}
+    <div className="space-y-5">
+      <PageHeader
+        title="Shopi team"
+        description="Messages between Shopi and sellers — replies, threads and broadcasts."
+        actions={
           <Button onClick={() => setComposeOpen(true)}>
             <MessageSquarePlus />
             New message
           </Button>
-        </div>
+        }
+      />
+
+      <div className="flex flex-col gap-3 border-b border-border lg:flex-row lg:items-end lg:justify-between">
+        <CountTabs
+          tabs={tabs.map(({ key, label, badge }) => ({
+            key,
+            label,
+            count: key === "replies" ? (badge ?? 0) : undefined,
+            attention: key === "replies",
+          }))}
+          value={view}
+          onChange={switchView}
+        />
+        {view !== "sent" && (
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Name, email or @handle"
+            className="mb-2.5"
+          />
+        )}
       </div>
 
       {view === "sent" ? (

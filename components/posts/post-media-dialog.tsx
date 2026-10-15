@@ -39,7 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const REFETCH = ["AdminContent", "AdminDashboardStats", "PendingApprovalContent"];
+const REFETCH = ["AdminContent", "AdminContentCounts", "AdminDashboardStats", "PendingApprovalContent"];
 
 /** Matches the API's MAX_CONTENT_MEDIA. */
 const MAX_MEDIA = 10;

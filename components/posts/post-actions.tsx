@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation } from "@apollo/client/react";
 import { toast } from "sonner";
 import {
   Check,
   ExternalLink,
-  EyeOff,
   Eye,
+  EyeOff,
   Images,
   Loader2,
   MoreHorizontal,
@@ -16,15 +16,17 @@ import {
   X,
 } from "lucide-react";
 import {
+  ADMIN_REMOVE_CONTENT,
   APPROVE_CONTENT,
   REJECT_CONTENT,
   SET_CONTENT_LIVE,
-  ADMIN_REMOVE_CONTENT,
 } from "@/graphql/operations";
 import { ContentStatus, type AdminContent } from "@/graphql/types";
+import { postPublicState, postPublicUrl } from "@/lib/post-url";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -33,13 +35,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PostMediaDialog } from "./post-media-dialog";
 import { PostBoostDialog } from "./post-boost-dialog";
-import { postPublicState, postPublicUrl } from "@/lib/post-url";
 
-/** Queries to refresh after any moderation action. */
-const REFETCH = [
+/** Every list that can show a post, refreshed after any action on one. */
+export const POST_REFETCH = [
   "AdminContent",
+  "AdminContentCounts",
   "AdminDashboardStats",
   "AdminPendingReviewCount",
   "PendingApprovalContent",
@@ -49,38 +58,42 @@ function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Something went wrong";
 }
 
-export function PostActions({ post }: { post: AdminContent }) {
+export interface PostAction {
+  key: "view" | "approve" | "reject" | "hide" | "live" | "boost" | "media" | "remove";
+  label: string;
+  icon: typeof Check;
+  onSelect: () => void;
+  destructive?: boolean;
+  loading?: boolean;
+}
+
+/**
+ * Everything an admin can do to one post, given its state, plus the dialogs
+ * those actions open. The row menu, the quick approve/reject buttons and the
+ * detail panel all render from this, so they can never disagree.
+ */
+export function usePostActions(post: AdminContent) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [boostOpen, setBoostOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [removeReason, setRemoveReason] = useState("");
-  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const [approve, { loading: approving }] = useMutation(APPROVE_CONTENT, {
-    refetchQueries: REFETCH,
-  });
-  const [reject, { loading: rejecting }] = useMutation(REJECT_CONTENT, {
-    refetchQueries: REFETCH,
-  });
-  const [setLive, { loading: togglingLive }] = useMutation(SET_CONTENT_LIVE, {
-    refetchQueries: REFETCH,
-  });
-  const [remove, { loading: removing }] = useMutation(ADMIN_REMOVE_CONTENT, {
-    refetchQueries: REFETCH,
-  });
+  const [approve, { loading: approving }] = useMutation(APPROVE_CONTENT, { refetchQueries: POST_REFETCH });
+  const [reject, { loading: rejecting }] = useMutation(REJECT_CONTENT, { refetchQueries: POST_REFETCH });
+  const [setLive, { loading: togglingLive }] = useMutation(SET_CONTENT_LIVE, { refetchQueries: POST_REFETCH });
+  const [remove, { loading: removing }] = useMutation(ADMIN_REMOVE_CONTENT, { refetchQueries: POST_REFETCH });
 
   async function handleApprove() {
     try {
       const { data } = await approve({ variables: { contentId: post.id } });
       const approved = data?.approveContent;
-      if (approved?.approval.isApproved && approved.status === ContentStatus.PROCESSING) {
-        toast.success("Post approved. It will go live once media processing finishes.");
-        return;
-      }
-      toast.success("Post approved");
+      toast.success(
+        approved?.status === ContentStatus.PROCESSING
+          ? "Approved — it goes live when its media finishes processing"
+          : "Approved and live",
+      );
     } catch (err) {
       toast.error(errMessage(err));
     }
@@ -88,12 +101,12 @@ export function PostActions({ post }: { post: AdminContent }) {
 
   async function handleReject() {
     if (!rejectReason.trim()) {
-      toast.error("A rejection reason is required — the creator will see it");
+      toast.error("Add a reason — the seller will see it");
       return;
     }
     try {
       await reject({ variables: { contentId: post.id, reason: rejectReason.trim() } });
-      toast.success("Post rejected");
+      toast.success("Rejected — the seller has been told why");
       setRejectOpen(false);
       setRejectReason("");
     } catch (err) {
@@ -104,7 +117,7 @@ export function PostActions({ post }: { post: AdminContent }) {
   async function handleSetLive(live: boolean) {
     try {
       await setLive({ variables: { contentId: post.id, live } });
-      toast.success(live ? "Post is now live" : "Post hidden from feeds");
+      toast.success(live ? "Live again" : "Hidden from buyers");
     } catch (err) {
       toast.error(errMessage(err));
     }
@@ -112,10 +125,8 @@ export function PostActions({ post }: { post: AdminContent }) {
 
   async function handleRemove() {
     try {
-      await remove({
-        variables: { contentId: post.id, reason: removeReason.trim() || null },
-      });
-      toast.success("Post removed");
+      await remove({ variables: { contentId: post.id, reason: removeReason.trim() || null } });
+      toast.success("Removed");
       setRemoveOpen(false);
       setRemoveReason("");
     } catch (err) {
@@ -124,74 +135,19 @@ export function PostActions({ post }: { post: AdminContent }) {
   }
 
   const status = post.status;
-  const canApprove =
-    status === ContentStatus.PENDING_REVIEW || status === ContentStatus.REJECTED;
+  const canApprove = status === ContentStatus.PENDING_REVIEW || status === ContentStatus.REJECTED;
   const canReject = status === ContentStatus.PENDING_REVIEW;
   const canHide = status === ContentStatus.ACTIVE;
   const canMakeLive =
     (status === ContentStatus.UNDER_REVIEW || status === ContentStatus.REMOVED) &&
     post.approval.isApproved;
-  const canRemove = status !== ContentStatus.REMOVED;
-  const busy = approving || rejecting || togglingLive || removing;
 
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [menuOpen]);
-
-  function closeMenu() {
-    setMenuOpen(false);
-  }
-
-  const isPublic = postPublicState(post).isPublic;
-
-  const actions: Array<{
-    key: string;
-    label: string;
-    icon: typeof Check;
-    onSelect: () => void;
-    visible: boolean;
-    destructive?: boolean;
-    loading?: boolean;
-  }> = [
-    {
-      key: "view",
-      label: "View on Shopi",
-      icon: ExternalLink,
-      onSelect: () => {
-        closeMenu();
-        window.open(postPublicUrl(post), "_blank", "noopener,noreferrer");
-      },
-      // The public site only serves live posts; anything else would open on
-      // "not found".
-      visible: isPublic,
-    },
+  const all: (PostAction & { visible: boolean })[] = [
     {
       key: "approve",
       label: "Approve",
       icon: Check,
-      onSelect: () => {
-        closeMenu();
-        void handleApprove();
-      },
+      onSelect: () => void handleApprove(),
       visible: canApprove,
       loading: approving,
     },
@@ -199,122 +155,65 @@ export function PostActions({ post }: { post: AdminContent }) {
       key: "reject",
       label: "Reject",
       icon: X,
-      onSelect: () => {
-        closeMenu();
-        setRejectOpen(true);
-      },
+      onSelect: () => setRejectOpen(true),
       visible: canReject,
     },
     {
       key: "hide",
-      label: "Hide",
+      label: "Hide from buyers",
       icon: EyeOff,
-      onSelect: () => {
-        closeMenu();
-        void handleSetLive(false);
-      },
+      onSelect: () => void handleSetLive(false),
       visible: canHide,
-      loading: togglingLive && canHide,
+      loading: togglingLive,
     },
     {
       key: "live",
       label: "Make live",
       icon: Eye,
-      onSelect: () => {
-        closeMenu();
-        void handleSetLive(true);
-      },
+      onSelect: () => void handleSetLive(true),
       visible: canMakeLive,
-      loading: togglingLive && canMakeLive,
+      loading: togglingLive,
     },
     {
       key: "boost",
       label: post.boost?.isBoosted ? "Manage boost" : "Boost",
       icon: Rocket,
-      onSelect: () => {
-        closeMenu();
-        setBoostOpen(true);
-      },
-      // Only a live post can actually benefit — a hidden or removed one is not
-      // in any feed for the multiplier to act on.
+      onSelect: () => setBoostOpen(true),
+      // Only a live post is in a feed for the boost to lift.
       visible: status === ContentStatus.ACTIVE,
     },
     {
+      key: "view",
+      label: "View on Shopi",
+      icon: ExternalLink,
+      onSelect: () => window.open(postPublicUrl(post), "_blank", "noopener,noreferrer"),
+      // The public site only serves live posts; anything else is "not found".
+      visible: postPublicState(post).isPublic,
+    },
+    {
       key: "media",
-      label: "Edit media",
+      label: "Replace media",
       icon: Images,
-      onSelect: () => {
-        closeMenu();
-        setMediaOpen(true);
-      },
-      // The repair hatch for failed uploads — available in every state, since a
-      // post is often taken down precisely because its media never processed.
+      onSelect: () => setMediaOpen(true),
+      // The repair hatch for failed uploads, so available in every state.
       visible: true,
     },
     {
       key: "remove",
       label: "Remove",
       icon: Trash2,
-      onSelect: () => {
-        closeMenu();
-        setRemoveOpen(true);
-      },
-      visible: canRemove,
+      onSelect: () => setRemoveOpen(true),
+      visible: status !== ContentStatus.REMOVED,
       destructive: true,
     },
-  ].filter((action) => action.visible);
+  ];
+  const actions: PostAction[] = all.filter((action) => action.visible);
 
-  return (
-    <div className="flex items-center justify-end" ref={menuRef}>
-      <div className="relative">
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-8 rounded-full"
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-label="Post actions"
-          aria-expanded={menuOpen}
-          aria-haspopup="menu"
-          disabled={actions.length === 0 || busy}
-        >
-          {busy ? <Loader2 className="animate-spin" /> : <MoreHorizontal />}
-        </Button>
-
-        {menuOpen && actions.length > 0 && (
-          <div
-            role="menu"
-            className="absolute right-0 top-10 z-[60] min-w-44 rounded-2xl border border-border bg-elevated p-1.5 shadow-lg"
-          >
-            {actions.map((action) => {
-              const Icon = action.loading ? Loader2 : action.icon;
-              return (
-                <button
-                  key={action.key}
-                  type="button"
-                  role="menuitem"
-                  onClick={action.onSelect}
-                  className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors cursor-pointer ${
-                    action.destructive
-                      ? "text-error hover:bg-error-soft"
-                      : "text-foreground hover:bg-subtle"
-                  }`}
-                >
-                  <Icon className={action.loading ? "animate-spin" : undefined} />
-                  {action.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Boost dialog */}
+  const dialogs = (
+    <>
       <PostBoostDialog post={post} open={boostOpen} onOpenChange={setBoostOpen} />
-
-      {/* Media repair dialog */}
       <PostMediaDialog post={post} open={mediaOpen} onOpenChange={setMediaOpen} />
 
-      {/* Reject dialog */}
       <Dialog
         open={rejectOpen}
         onOpenChange={(open) => {
@@ -324,33 +223,33 @@ export function PostActions({ post }: { post: AdminContent }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject “{post.title}”</DialogTitle>
+            <DialogTitle>Reject this post?</DialogTitle>
             <DialogDescription>
-              The post will be hidden and the creator will receive an email with your reason.
+              “{post.title}” will be hidden and the seller emailed your reason.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label htmlFor="reject-reason">Reason</Label>
+            <Label htmlFor={`reject-${post.id}`}>Reason</Label>
             <Textarea
-              id="reject-reason"
+              id={`reject-${post.id}`}
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="e.g. Images are too blurry to verify the product"
+              placeholder="e.g. Photos are too blurry to show the product"
               rows={3}
+              autoFocus
             />
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setRejectOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleReject} loading={rejecting}>
+            <Button variant="destructive" onClick={() => void handleReject()} loading={rejecting}>
               Reject post
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Remove dialog */}
       <Dialog
         open={removeOpen}
         onOpenChange={(open) => {
@@ -360,19 +259,18 @@ export function PostActions({ post }: { post: AdminContent }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove “{post.title}”</DialogTitle>
+            <DialogTitle>Remove this post?</DialogTitle>
             <DialogDescription>
-              Takes the post down from the platform entirely. You can restore it later with “Make
-              live” since its approval record is kept.
+              “{post.title}” comes down everywhere. Its approval is kept, so “Make live” can restore it.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label htmlFor="remove-reason">Reason (optional)</Label>
+            <Label htmlFor={`remove-${post.id}`}>Reason (optional)</Label>
             <Textarea
-              id="remove-reason"
+              id={`remove-${post.id}`}
               value={removeReason}
               onChange={(e) => setRemoveReason(e.target.value)}
-              placeholder="Internal note / shown to the creator"
+              placeholder="Shown to the seller"
               rows={2}
             />
           </div>
@@ -380,12 +278,136 @@ export function PostActions({ post }: { post: AdminContent }) {
             <Button variant="ghost" onClick={() => setRemoveOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleRemove} loading={removing}>
+            <Button variant="destructive" onClick={() => void handleRemove()} loading={removing}>
               Remove post
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  );
+
+  return { actions, dialogs, busy: approving || rejecting || togglingLive || removing };
+}
+
+function ActionMenuItems({ actions }: { actions: PostAction[] }) {
+  const safe = actions.filter((action) => !action.destructive);
+  const destructive = actions.filter((action) => action.destructive);
+  return (
+    <>
+      {safe.map(({ key, label, icon: Icon, onSelect }) => (
+        <DropdownMenuItem key={key} onSelect={onSelect}>
+          <Icon /> {label}
+        </DropdownMenuItem>
+      ))}
+      {destructive.length > 0 && safe.length > 0 && <DropdownMenuSeparator />}
+      {destructive.map(({ key, label, icon: Icon, onSelect }) => (
+        <DropdownMenuItem key={key} onSelect={onSelect} destructive>
+          <Icon /> {label}
+        </DropdownMenuItem>
+      ))}
+    </>
+  );
+}
+
+/**
+ * The actions cell of a post row: one-click approve/reject while a post waits
+ * for review, and everything else under "⋯".
+ */
+export function PostRowActions({ post }: { post: AdminContent }) {
+  const { actions, dialogs, busy } = usePostActions(post);
+  const approve = actions.find((action) => action.key === "approve");
+  const reject = actions.find((action) => action.key === "reject");
+  const quick = post.status === ContentStatus.PENDING_REVIEW;
+
+  return (
+    // Rows open the post on click/Enter; actions inside them must not.
+    <div
+      className="flex items-center justify-end gap-1"
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      {quick && approve && (
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          className="text-success hover:bg-success-soft"
+          onClick={approve.onSelect}
+          disabled={busy}
+          aria-label="Approve"
+          title="Approve"
+        >
+          {approve.loading ? <Loader2 className="animate-spin" /> : <Check />}
+        </Button>
+      )}
+      {quick && reject && (
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          className="text-error hover:bg-error-soft"
+          onClick={reject.onSelect}
+          disabled={busy}
+          aria-label="Reject"
+          title="Reject"
+        >
+          <X />
+        </Button>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon-sm" variant="ghost" aria-label="More actions" disabled={busy && !quick}>
+            {busy && !quick ? <Loader2 className="animate-spin" /> : <MoreHorizontal />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <ActionMenuItems
+            actions={quick ? actions.filter((a) => a.key !== "approve" && a.key !== "reject") : actions}
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {dialogs}
+    </div>
+  );
+}
+
+/**
+ * The action bar of the post detail panel: the state's main moves as buttons
+ * (approve/reject, hide/make live, boost), the rest under "More".
+ */
+export function PostActionBar({ post, className }: { post: AdminContent; className?: string }) {
+  const { actions, dialogs, busy } = usePostActions(post);
+  const primaryKeys: PostAction["key"][] = ["approve", "reject", "hide", "live", "boost"];
+  const primary = actions.filter((action) => primaryKeys.includes(action.key));
+  const rest = actions.filter((action) => !primaryKeys.includes(action.key));
+
+  return (
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      {primary.map(({ key, label, icon: Icon, onSelect, loading }) => (
+        <Button
+          key={key}
+          size="sm"
+          variant={key === "approve" ? "default" : key === "reject" ? "outline" : "outline"}
+          className={cn(key === "reject" && "text-error hover:bg-error-soft")}
+          onClick={onSelect}
+          disabled={busy}
+        >
+          {loading ? <Loader2 className="animate-spin" /> : <Icon />}
+          {label}
+        </Button>
+      ))}
+      {rest.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" disabled={busy}>
+              <MoreHorizontal /> More
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <ActionMenuItems actions={rest} />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      {dialogs}
     </div>
   );
 }

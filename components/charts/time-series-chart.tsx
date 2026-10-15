@@ -61,8 +61,9 @@ export function TimeSeriesChart({
   const plotH = height - PAD.top - PAD.bottom;
 
   const { ticks, maxTick } = useMemo(() => {
-    const maxValue = Math.max(1, ...series.flatMap((s) => s.values));
-    const t = niceTicks(maxValue);
+    const values = series.flatMap((s) => s.values);
+    const maxValue = Math.max(1, ...values);
+    const t = niceTicks(maxValue, 4, values.every(Number.isInteger));
     return { ticks: t, maxTick: t[t.length - 1] };
   }, [series]);
 

@@ -26,7 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const REFETCH = ["AdminUsers", "AdminDashboardStats"];
+const REFETCH = ["AdminUsers", "AdminUserCounts", "AdminDashboardStats"];
 
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Something went wrong";

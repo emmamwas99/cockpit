@@ -25,17 +25,19 @@ export function useContainerWidth<T extends HTMLElement>() {
  * "Nice" axis ticks: 0..max rounded up to a clean step (1/2/2.5/5 × 10ⁿ).
  * Returns ~`count` ticks including 0 and the padded max.
  */
-export function niceTicks(maxValue: number, count = 4): number[] {
+export function niceTicks(maxValue: number, count = 4, integer = false): number[] {
   if (maxValue <= 0) return [0, 1];
   const rawStep = maxValue / count;
   const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
   const residual = rawStep / magnitude;
-  const step =
+  const nice =
     residual <= 1 ? magnitude
     : residual <= 2 ? 2 * magnitude
     : residual <= 2.5 ? 2.5 * magnitude
     : residual <= 5 ? 5 * magnitude
     : 10 * magnitude;
+  // Counts can't be fractional: never label an axis "0.25 posts".
+  const step = integer ? Math.max(1, Math.ceil(nice)) : nice;
   const top = Math.ceil(maxValue / step) * step;
   const ticks: number[] = [];
   for (let v = 0; v <= top + step / 2; v += step) ticks.push(v);

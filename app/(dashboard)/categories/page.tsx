@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { PageHeader } from "@/components/shared/page";
 import {
   Table,
   TableBody,
@@ -97,11 +98,12 @@ export default function CategoriesPage() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [parentId, setParentId] = useState("");
   const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [editName, setEditName] = useState("");
   const [editSlug, setEditSlug] = useState("");
   const [editSlugTouched, setEditSlugTouched] = useState(false);
   const [editDescription, setEditDescription] = useState("");
-  const [editIcon, setEditIcon] = useState("");
+  const [editImageUrl, setEditImageUrl] = useState("");
   const [editSortOrder, setEditSortOrder] = useState("0");
 
   const [createCategory, { loading: creating }] = useMutation(CREATE_CATEGORY, {
@@ -141,7 +143,7 @@ export default function CategoriesPage() {
     setEditSlug(selectedCategory.slug);
     setEditSlugTouched(false);
     setEditDescription(selectedCategory.description ?? "");
-    setEditIcon(selectedCategory.icon ?? "");
+    setEditImageUrl(selectedCategory.imageUrl ?? "");
     setEditSortOrder(String(selectedCategory.sortOrder));
   }, [selectedCategory, editOpen]);
 
@@ -155,6 +157,7 @@ export default function CategoriesPage() {
             slug: slug.trim() || slugify(name),
             parentId: parentId || undefined,
             description: description.trim() || undefined,
+            imageUrl: imageUrl.trim() || undefined,
           },
         },
       });
@@ -166,6 +169,7 @@ export default function CategoriesPage() {
       setSlugTouched(false);
       setParentId("");
       setDescription("");
+      setImageUrl("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create category");
     }
@@ -182,7 +186,7 @@ export default function CategoriesPage() {
             name: editName.trim(),
             slug: editSlug.trim() || slugify(editName),
             description: editDescription.trim() || "",
-            icon: editIcon.trim() || "",
+            imageUrl: editImageUrl.trim() || null,
             sortOrder: Number(editSortOrder) || 0,
           },
         },
@@ -232,16 +236,17 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">
-          {categories.length} categories · content is auto-classified into these by AI
-        </p>
-        <Button onClick={() => setCreateOpen(true)}>
-          <FolderPlus />
-          New category
-        </Button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Categories"
+        description={`${categories.length} categories · new posts are sorted into these automatically`}
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <FolderPlus />
+            New category
+          </Button>
+        }
+      />
 
       <Card>
         <CardContent className="p-0">
@@ -275,7 +280,14 @@ export default function CategoriesPage() {
                         style={{ paddingLeft: `${cat.depth * 20}px` }}
                       >
                         {cat.depth > 0 && <CornerDownRight className="size-3.5 text-muted" />}
-                        {cat.icon && <span>{cat.icon}</span>}
+                        {cat.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={cat.imageUrl}
+                            alt=""
+                            className="size-9 rounded-lg border border-default bg-subtle object-cover"
+                          />
+                        ) : null}
                         <span className="text-sm font-medium text-foreground">{cat.name}</span>
                       </div>
                     </TableCell>
@@ -426,6 +438,16 @@ export default function CategoriesPage() {
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cat-image-url">Category image URL (optional)</Label>
+              <Input
+                id="cat-image-url"
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://media.shopi.co.ke/categories/electronics.webp"
+              />
+            </div>
             <DialogFooter className="pt-2">
               <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>
                 Cancel
@@ -472,14 +494,25 @@ export default function CategoriesPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="edit-cat-icon">Icon (optional)</Label>
+              <Label htmlFor="edit-cat-image-url">Category image URL (optional)</Label>
               <Input
-                id="edit-cat-icon"
-                value={editIcon}
-                onChange={(e) => setEditIcon(e.target.value)}
-                placeholder="e.g. 📱"
+                id="edit-cat-image-url"
+                type="url"
+                value={editImageUrl}
+                onChange={(e) => setEditImageUrl(e.target.value)}
+                placeholder="https://media.shopi.co.ke/categories/electronics.webp"
               />
             </div>
+            {editImageUrl.trim() ? (
+              <div className="overflow-hidden rounded-xl border border-default bg-subtle">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={editImageUrl.trim()}
+                  alt={`${editName || "Category"} preview`}
+                  className="h-36 w-full object-cover"
+                />
+              </div>
+            ) : null}
             <div className="space-y-1.5">
               <Label htmlFor="edit-cat-sort">Sort order</Label>
               <Input

@@ -25,7 +25,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const REFETCH = ["AdminContent", "AdminBoosts", "AdminDashboardStats", "PendingApprovalContent"];
+const REFETCH = [
+  "AdminContent",
+  "AdminBoosts",
+  "AdminBoostCounts",
+  "AdminDashboardStats",
+  "PendingApprovalContent",
+];
 
 /** Rank mark per package — mirrors the badge buyers see on the listing. */
 const TIER_ICON: Record<BoostTier, typeof Medal> = {
@@ -145,7 +151,7 @@ export function PostBoostDialog({
                 const Icon = TIER_ICON[activeBoost.tier as BoostTier] ?? Medal;
                 return <Icon className="size-4 text-accent" />;
               })()}
-              <span className="font-medium capitalize text-foreground">{activeBoost.tier}</span>
+              <span className="font-medium capitalize text-foreground">{activeBoost.tier?.toLowerCase()}</span>
               <span className="text-muted">
                 ×{activeBoost.multiplier} · {boostRunLabel(activeBoost) ?? "running"} · ends{" "}
                 {activeBoost.expiresAt

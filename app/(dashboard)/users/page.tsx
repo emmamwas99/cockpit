@@ -1,749 +1,228 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@apollo/client/react";
-import { toast } from "sonner";
-import {
-  Search,
-  UserPlus,
-  ShieldCheck,
-  UserCog,
-  Ban,
-  Undo2,
-  BadgeCheck,
-  RefreshCw,
-  MoreHorizontal,
-  LogIn,
-  Loader2,
-  Trash2,
-  Smartphone,
-  Monitor,
-  Tablet,
-  HelpCircle,
-  Sparkles,
-  MapPin,
-  Globe,
-} from "lucide-react";
-import { ADMIN_CREATE_IMPERSONATION_TOKEN, ADMIN_USERS } from "@/graphql/operations";
-import {
-  AttributionMedium,
-  UserRole,
-  type AdminUser,
-  type AdminUserLocation,
-  type SignupDevice,
-} from "@/graphql/types";
-import { formatDate, formatRelative, displayName } from "@/lib/format";
-import { useAuthStore } from "@/stores/auth";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@apollo/client/react";
+import { BadgeCheck, Plus, Users } from "lucide-react";
+import { ADMIN_USERS, ADMIN_USER_COUNTS } from "@/graphql/operations";
+import { UserRole, type AdminUser, type AdminUserCounts } from "@/graphql/types";
+import { displayName, formatDate, formatRelative } from "@/lib/format";
 import { Avatar } from "@/components/ui/avatar";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination } from "@/components/shared/pagination";
-import { webUrl } from "@/lib/web-url";
 import {
-  RolesDialog,
-  SuspendDialog,
-  VerifyDialog,
-  SocialProofDialog,
-  CreateStaffDialog,
-  DeleteUserDialog,
-} from "@/components/users/user-dialogs";
+  CountTabs,
+  EmptyState,
+  ListToolbar,
+  PageHeader,
+  SearchInput,
+  TableSkeleton,
+  useDebouncedValue,
+} from "@/components/shared/page";
+import { CreateStaffDialog } from "@/components/users/user-dialogs";
+import { UserActionMenu, isSeller, rolesOf, useUserActions } from "@/components/users/user-actions";
+import { UserSheet, locationText, type UserSheetTab } from "@/components/users/user-sheet";
 
 const PAGE_SIZE = 20;
-/** Status-select value that lists homepage social-proof sellers. */
-const SOCIAL_PROOF_FILTER = "social-proof";
 
-/** The status select also carries the social-proof view, so map it to both args. */
-function statusFilterVars(value: string) {
-  return {
-    suspended: value === "true" ? true : value === "false" ? false : null,
-    socialProof: value === SOCIAL_PROOF_FILTER ? true : null,
-  };
-}
-const SEARCH_DEBOUNCE_MS = 350;
+type TabKey = "all" | "sellers" | "verified" | "admins" | "suspended";
 
-function errMessage(err: unknown): string {
-  return err instanceof Error ? err.message : "Something went wrong";
-}
-
-function impersonationUrl(token: string): string {
-  return webUrl(`/en/auth/impersonate?token=${encodeURIComponent(token)}`);
-}
-
-function providerList(user: AdminUser): string {
-  const providers: string[] = [];
-  if (user.authProviders?.local) providers.push("password");
-  if (user.authProviders?.google) providers.push("google");
-  if (user.authProviders?.facebook) providers.push("facebook");
-  if (user.authProviders?.apple) providers.push("apple");
-  if (user.authProviders?.tiktok) providers.push("tiktok");
-  return providers.join(", ") || "—";
-}
-
-/**
- * Human label for where an account came from.
- *
- * Accounts created before attribution shipped carry no record at all, and that
- * is not the same as "direct" — showing them as direct would silently inflate
- * the one bucket we can least afford to get wrong.
- */
-function sourceLabel(user: AdminUser): string {
-  const source = user.attribution?.source;
-  if (!source) return "—";
-  return source;
-}
-
-const DEVICE_ICON = {
-  MOBILE: Smartphone,
-  TABLET: Tablet,
-  DESKTOP: Monitor,
-  OTHER: HelpCircle,
-} as const;
-
-const DEVICE_LABEL = {
-  MOBILE: "Phone",
-  TABLET: "Tablet",
-  DESKTOP: "Desktop",
-  OTHER: "Unknown",
-} as const;
-
-/**
- * What the account was first seen on.
- *
- * Taken from the user's earliest recorded session, which lands moments after
- * registration. Accounts whose first session predates session capture show a
- * dash rather than a guess — same rule as the source column beside it.
- */
-function SignupDeviceCell({ device }: { device?: SignupDevice | null }) {
-  if (!device) {
-    return (
-      <span className="text-sm text-muted" title="No session recorded for this account">
-        —
-      </span>
-    );
-  }
-
-  const Icon = DEVICE_ICON[device.deviceType] ?? HelpCircle;
-  const detail = [device.operatingSystem, device.browser].filter(Boolean).join(" · ");
-
-  return (
-    <span
-      className="flex items-center gap-2 text-sm text-foreground"
-      title={`First seen ${formatDate(device.firstSeenAt)}${detail ? ` on ${detail}` : ""}`}
-    >
-      <Icon className="size-4 shrink-0 text-muted" />
-      <span>
-        {DEVICE_LABEL[device.deviceType] ?? device.deviceType}
-        {detail ? <span className="ml-1 text-muted">{detail}</span> : null}
-      </span>
-    </span>
-  );
-}
-
-/**
- * County > ward when the user has saved a location on a post. Otherwise the
- * county looked up from their signup IP, marked "approx" — Kenyan mobile data
- * often routes through Nairobi, so treat it as a hint.
- */
-function LocationCell({ location }: { location?: AdminUserLocation | null }) {
-  if (!location || (!location.county && !location.country)) {
-    return (
-      <span className="text-sm text-muted" title="No saved location and no IP lookup yet">
-        —
-      </span>
-    );
-  }
-
-  if (!location.approximate) {
-    const parts = [location.county, location.ward].filter(Boolean);
-    return (
-      <span
-        className="flex items-center gap-1.5 text-sm text-foreground"
-        title={[location.county, location.subCounty, location.ward].filter(Boolean).join(" > ")}
-      >
-        <MapPin className="size-3.5 shrink-0 text-muted" />
-        {parts.join(" > ")}
-      </span>
-    );
-  }
-
-  const label =
-    location.county ?? (location.country && location.country !== "KE" ? location.country : "Kenya");
-  return (
-    <span
-      className="flex items-center gap-1.5 text-sm text-foreground"
-      title={[
-        "Approximate — from signup IP",
-        location.city && `City: ${location.city}`,
-        location.isp && `Network: ${location.isp}`,
-      ]
-        .filter(Boolean)
-        .join("\n")}
-    >
-      <Globe className="size-3.5 shrink-0 text-muted" />
-      {label}
-      <span className="text-xs text-muted">approx</span>
-    </span>
-  );
-}
-
-/** Badge tone per medium, so paid and organic are distinguishable at a glance. */
-function mediumVariant(
-  medium?: AttributionMedium | null,
-): "default" | "secondary" | "accent" | "success" {
-  switch (medium) {
-    case AttributionMedium.PAID:
-      return "default";
-    case AttributionMedium.ORGANIC:
-      return "success";
-    case AttributionMedium.SOCIAL:
-      return "accent";
-    default:
-      return "secondary";
-  }
-}
-
-function resolvedRoles(user: Pick<AdminUser, "roles" | "role">): UserRole[] {
-  const set = new Set<UserRole>(user.roles ?? []);
-  if (user.role) set.add(user.role);
-  return [UserRole.USER, UserRole.CREATOR, UserRole.ADMIN].filter((role) => set.has(role));
-}
+const TABS: {
+  key: TabKey;
+  label: string;
+  countKey: keyof AdminUserCounts;
+  vars: { role?: UserRole; verified?: boolean; suspended?: boolean };
+}[] = [
+  { key: "all", label: "All", countKey: "all", vars: {} },
+  { key: "sellers", label: "Sellers", countKey: "sellers", vars: { role: UserRole.CREATOR } },
+  { key: "verified", label: "Verified", countKey: "verified", vars: { verified: true } },
+  { key: "admins", label: "Admins", countKey: "admins", vars: { role: UserRole.ADMIN } },
+  { key: "suspended", label: "Suspended", countKey: "suspended", vars: { suspended: true } },
+];
 
 export default function UsersPage() {
-  const searchParams = useSearchParams();
-  const presetSearch = searchParams.get("search") ?? "";
-  const me = useAuthStore((s) => s.user);
+  return (
+    <Suspense>
+      <UsersScreen />
+    </Suspense>
+  );
+}
+
+function UsersScreen() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const tabKey = (TABS.find((t) => t.key === params.get("tab"))?.key ?? "all") as TabKey;
+  const tab = TABS.find((t) => t.key === tabKey)!;
+
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState(presetSearch);
-  const [submittedSearch, setSubmittedSearch] = useState(presetSearch);
-  const [roleFilter, setRoleFilter] = useState<string>("");
-  const [suspendedFilter, setSuspendedFilter] = useState<string>("");
-  const [mediumFilter, setMediumFilter] = useState<string>("");
-  // Set by clicking a Source cell — the fastest way to answer "who else came
-  // from this source?" without building a separate report screen.
-  const [sourceFilter, setSourceFilter] = useState<string>("");
-
-  const [rolesUser, setRolesUser] = useState<AdminUser | null>(null);
-  const [rolesOpen, setRolesOpen] = useState(false);
-  const [verifyUser, setVerifyUser] = useState<AdminUser | null>(null);
-  const [verifyOpen, setVerifyOpen] = useState(false);
-  const [socialProofUser, setSocialProofUser] = useState<AdminUser | null>(null);
-  const [socialProofOpen, setSocialProofOpen] = useState(false);
-  const [suspendUser, setSuspendUser] = useState<AdminUser | null>(null);
-  const [suspendOpen, setSuspendOpen] = useState(false);
-  const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState(params.get("search") ?? "");
+  const search = useDebouncedValue(searchInput.trim());
+  const [opened, setOpened] = useState<AdminUser | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetTab, setSheetTab] = useState<UserSheetTab>("profile");
   const [createOpen, setCreateOpen] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
-  const [openActionUserId, setOpenActionUserId] = useState<string | null>(null);
-  const actionMenuRef = useRef<HTMLDivElement | null>(null);
+  const api = useUserActions();
 
-  const { data, loading, refetch } = useQuery(ADMIN_USERS, {
+  const { data: countData } = useQuery(ADMIN_USER_COUNTS, {
+    variables: { search: search || null },
+    fetchPolicy: "cache-and-network",
+  });
+  const counts = countData?.adminUserCounts;
+
+  const { data, loading } = useQuery(ADMIN_USERS, {
     variables: {
       page,
       limit: PAGE_SIZE,
-      search: submittedSearch || null,
-      role: (roleFilter as UserRole) || null,
-      ...statusFilterVars(suspendedFilter),
-      source: sourceFilter || null,
-      medium: (mediumFilter as AttributionMedium) || null,
+      search: search || null,
+      role: tab.vars.role ?? null,
+      verified: tab.vars.verified ?? null,
+      suspended: tab.vars.suspended ?? null,
     },
+    fetchPolicy: "cache-and-network",
   });
-  const [createImpersonationToken] = useMutation(ADMIN_CREATE_IMPERSONATION_TOKEN);
-
   const users = data?.adminUsers.data ?? [];
   const meta = data?.adminUsers.meta;
-  const rolesUserFresh = useMemo(
-    () => (rolesUser ? (users.find((user) => user.id === rolesUser.id) ?? rolesUser) : null),
-    [rolesUser, users],
-  );
-  const suspendUserFresh = useMemo(
-    () =>
-      suspendUser ? (users.find((user) => user.id === suspendUser.id) ?? suspendUser) : null,
-    [suspendUser, users],
-  );
-  const verifyUserFresh = useMemo(
-    () => (verifyUser ? (users.find((user) => user.id === verifyUser.id) ?? verifyUser) : null),
-    [verifyUser, users],
-  );
-  const socialProofUserFresh = socialProofUser
-    ? (users.find((user) => user.id === socialProofUser.id) ?? socialProofUser)
-    : null;
+  // Keep the open panel on the freshest copy after an action refetches the list.
+  const openedFresh = opened ? (users.find((u) => u.id === opened.id) ?? opened) : null;
 
-  useEffect(() => {
-    const nextSearch = search.trim();
-    const handle = window.setTimeout(() => {
-      setSubmittedSearch((current) => {
-        if (current === nextSearch) return current;
-        setPage(1);
-        return nextSearch;
-      });
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => window.clearTimeout(handle);
-  }, [search]);
-
-  useEffect(() => {
-    if (!openActionUserId) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!actionMenuRef.current?.contains(event.target as Node)) {
-        setOpenActionUserId(null);
-      }
-    }
-
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpenActionUserId(null);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [openActionUserId]);
-
-  async function handleRefresh() {
-    setRefreshing(true);
-    try {
-      await refetch({
-        page,
-        limit: PAGE_SIZE,
-        search: submittedSearch || null,
-        role: (roleFilter as UserRole) || null,
-        ...statusFilterVars(suspendedFilter),
-        source: sourceFilter || null,
-        medium: (mediumFilter as AttributionMedium) || null,
-      });
-    } finally {
-      setRefreshing(false);
-    }
+  function switchTab(key: TabKey) {
+    const next = new URLSearchParams(params.toString());
+    next.set("tab", key);
+    router.replace(`/users?${next.toString()}`, { scroll: false });
+    setPage(1);
   }
 
-  async function handleImpersonate(user: AdminUser) {
-    setImpersonatingUserId(user.id);
-    const popup = window.open("about:blank", "_blank");
-    try {
-      const { data } = await createImpersonationToken({ variables: { userId: user.id } });
-      const token = data?.adminCreateImpersonationToken.token;
-      if (!token) throw new Error("Impersonation token was not returned");
-
-      const url = impersonationUrl(token);
-      if (popup) {
-        popup.opener = null;
-        popup.location.replace(url);
-      } else if (!window.open(url, "_blank", "noopener,noreferrer")) {
-        throw new Error("Popup was blocked. Please allow popups for the admin dashboard.");
-      }
-      toast.success(`Opening ${displayName(user)} as an impersonated session`);
-    } catch (err) {
-      if (popup && !popup.closed) popup.close();
-      toast.error(errMessage(err));
-    } finally {
-      setImpersonatingUserId(null);
-    }
+  function openUser(user: AdminUser, sheet: UserSheetTab = "profile") {
+    setOpened(user);
+    setSheetTab(sheet);
+    setSheetOpen(true);
   }
 
   return (
-    <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search email, username, name…"
-              className="pl-9"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Select
-              value={roleFilter}
-              onChange={(e) => {
-                setRoleFilter(e.target.value);
-                setPage(1);
-              }}
-              className="w-36"
-            >
-              <option value="">All roles</option>
-              <option value={UserRole.ADMIN}>Admins</option>
-              <option value={UserRole.CREATOR}>Creators</option>
-              <option value={UserRole.USER}>Users</option>
-            </Select>
-            <Select
-              value={suspendedFilter}
-              onChange={(e) => {
-                setSuspendedFilter(e.target.value);
-                setPage(1);
-              }}
-              className="w-36"
-            >
-              <option value="">Any status</option>
-              <option value="false">Active</option>
-              <option value="true">Suspended</option>
-              <option value={SOCIAL_PROOF_FILTER}>Social proof</option>
-            </Select>
-            <Select
-              value={mediumFilter}
-              onChange={(e) => {
-                setMediumFilter(e.target.value);
-                setPage(1);
-              }}
-              className="w-36"
-            >
-              <option value="">Any source</option>
-              <option value={AttributionMedium.ORGANIC}>Organic search</option>
-              <option value={AttributionMedium.SOCIAL}>Social</option>
-              <option value={AttributionMedium.PAID}>Paid</option>
-              <option value={AttributionMedium.REFERRAL}>Referral</option>
-              <option value={AttributionMedium.DIRECT}>Direct</option>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-start lg:self-auto">
-          {sourceFilter && (
-            <button
-              type="button"
-              onClick={() => {
-                setSourceFilter("");
-                setPage(1);
-              }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
-            >
-              Source: {sourceFilter}
-              <span aria-hidden>×</span>
-              <span className="sr-only">Clear source filter</span>
-            </button>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => void handleRefresh()}
-            loading={refreshing}
-          >
-            {!refreshing && <RefreshCw />}
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </Button>
+    <>
+      <PageHeader
+        title="Users"
+        description="Everyone on Shopi — buyers, sellers and staff."
+        actions={
           <Button onClick={() => setCreateOpen(true)}>
-            <UserPlus />
-            New staff account
+            <Plus /> Add staff
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {loading && users.length === 0 ? (
-            <div className="space-y-2 p-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-14 w-full" />
-              ))}
-            </div>
-          ) : users.length === 0 ? (
-            <p className="py-16 text-center text-sm text-muted">No users match your filters</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Roles</TableHead>
-                  <TableHead>Sign-in</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Device</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => {
-                  const isMe = user.id === me?.id;
-                  const roles = resolvedRoles(user);
-                  const isAdminAccount = roles.includes(UserRole.ADMIN);
-                  const impersonationDisabled = isMe || isAdminAccount || user.isSuspended;
-                  return (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar src={user.profile?.avatar} name={displayName(user)} />
-                          <div className="min-w-0 max-w-[220px]">
-                            <p className="truncate text-sm font-medium text-foreground">
-                              {displayName(user)}
-                              {isMe && <span className="ml-1 text-xs text-muted">(you)</span>}
-                            </p>
-                            <p className="truncate text-xs text-muted">
-                              {user.email ?? (user.username ? `@${user.username}` : user.id)}
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {roles.includes(UserRole.USER) && (
-                            <Badge variant="secondary">User</Badge>
-                          )}
-                          {roles.includes(UserRole.CREATOR) && (
-                            <Badge variant="accent">Creator</Badge>
-                          )}
-                          {roles.includes(UserRole.ADMIN) && (
-                            <Badge>
-                              <ShieldCheck className="mr-1 size-3" />
-                              Admin
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm text-muted">
-                        {providerList(user)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {user.attribution ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSourceFilter(user.attribution!.source);
-                              setPage(1);
-                            }}
-                            title={[
-                              user.attribution.campaign &&
-                                `Campaign: ${user.attribution.campaign}`,
-                              user.attribution.landingPath &&
-                                `Landed on: ${user.attribution.landingPath}`,
-                              user.attribution.referrer &&
-                                `Referrer: ${user.attribution.referrer}`,
-                              typeof user.attribution.hoursToSignup === "number" &&
-                                `Signed up ${user.attribution.hoursToSignup}h after first visit`,
-                            ]
-                              .filter(Boolean)
-                              .join("\n") || undefined}
-                            className="cursor-pointer"
-                          >
-                            <Badge variant={mediumVariant(user.attribution.medium)}>
-                              {sourceLabel(user)}
-                            </Badge>
-                          </button>
-                        ) : (
-                          <span className="text-sm text-muted" title="Account predates source tracking">
-                            —
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <SignupDeviceCell device={user.signupDevice} />
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <LocationCell location={user.adminLocation} />
-                      </TableCell>
-                      <TableCell>
-                        {user.isSuspended ? (
-                          <Badge
-                            variant="destructive"
-                            title={user.suspensionReason ?? undefined}
-                          >
-                            Suspended {formatRelative(user.suspendedAt)}
-                          </Badge>
-                        ) : user.isVerified ? (
-                          <Badge variant="success">Verified</Badge>
-                        ) : (
-                          <Badge variant="secondary">Unverified</Badge>
-                        )}
-                        {user.socialProof?.featured && (
-                          <Badge
-                            variant="secondary"
-                            className="mt-1 gap-1"
-                            title={user.socialProof.headline ?? "Featured on the homepage"}
-                          >
-                            <Sparkles className="size-3" />
-                            Social proof
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell
-                        className="whitespace-nowrap text-sm text-muted"
-                        title={formatDate(user.createdAt)}
-                      >
-                        {formatRelative(user.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end" ref={openActionUserId === user.id ? actionMenuRef : null}>
-                          <div className="relative">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-8 rounded-full"
-                              onClick={() =>
-                                setOpenActionUserId((current) => (current === user.id ? null : user.id))
-                              }
-                              aria-label="User actions"
-                              aria-expanded={openActionUserId === user.id}
-                              aria-haspopup="menu"
-                            >
-                              <MoreHorizontal />
-                            </Button>
+      <Card className="overflow-hidden">
+        <ListToolbar
+          tabs={
+            <CountTabs
+              tabs={TABS.map((t) => ({ key: t.key, label: t.label, count: counts?.[t.countKey] }))}
+              value={tabKey}
+              onChange={switchTab}
+            />
+          }
+        >
+          <SearchInput
+            value={searchInput}
+            onChange={(value) => {
+              setSearchInput(value);
+              setPage(1);
+            }}
+            placeholder="Name, email or @handle"
+          />
+        </ListToolbar>
 
-                            {openActionUserId === user.id && (
-                              <div
-                                role="menu"
-                                className="absolute right-0 top-10 z-[60] min-w-44 rounded-2xl border border-border bg-elevated p-1.5 shadow-lg"
-                              >
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  disabled={impersonationDisabled || impersonatingUserId === user.id}
-                                  title={
-                                    isMe
-                                      ? "You are already signed in as this admin"
-                                      : isAdminAccount
-                                        ? "Admin accounts cannot be impersonated"
-                                        : user.isSuspended
-                                          ? "Suspended accounts cannot be impersonated"
-                                          : undefined
-                                  }
-                                  onClick={() => {
-                                    if (impersonationDisabled) return;
-                                    setOpenActionUserId(null);
-                                    void handleImpersonate(user);
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-subtle disabled:pointer-events-none disabled:opacity-50"
-                                >
-                                  {impersonatingUserId === user.id ? (
-                                    <Loader2 className="animate-spin" />
-                                  ) : (
-                                    <LogIn />
-                                  )}
-                                  Impersonate
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    setOpenActionUserId(null);
-                                    setRolesUser(user);
-                                    setRolesOpen(true);
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-subtle"
-                                >
-                                  <UserCog />
-                                  Roles
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    setOpenActionUserId(null);
-                                    setVerifyUser(user);
-                                    setVerifyOpen(true);
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-subtle"
-                                >
-                                  <BadgeCheck />
-                                  {user.isVerified ? "Verified" : "Verify"}
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    setOpenActionUserId(null);
-                                    setSocialProofUser(user);
-                                    setSocialProofOpen(true);
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-subtle"
-                                >
-                                  <Sparkles />
-                                  {user.socialProof?.featured ? "Social proof ✓" : "Social proof"}
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  disabled={isMe && !user.isSuspended}
-                                  title={
-                                    isMe && !user.isSuspended
-                                      ? "You cannot suspend your own account"
-                                      : undefined
-                                  }
-                                  onClick={() => {
-                                    if (isMe && !user.isSuspended) return;
-                                    setOpenActionUserId(null);
-                                    setSuspendUser(user);
-                                    setSuspendOpen(true);
-                                  }}
-                                  className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${
-                                    user.isSuspended
-                                      ? "text-foreground hover:bg-subtle"
-                                      : "text-error hover:bg-error-soft"
-                                  } disabled:pointer-events-none disabled:opacity-50`}
-                                >
-                                  {user.isSuspended ? <Undo2 /> : <Ban />}
-                                  {user.isSuspended ? "Reinstate" : "Suspend"}
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  disabled={isMe || isAdminAccount}
-                                  title={
-                                    isMe
-                                      ? "You cannot delete your own account"
-                                      : isAdminAccount
-                                        ? "Admin accounts cannot be deleted — demote first"
-                                        : undefined
-                                  }
-                                  onClick={() => {
-                                    if (isMe || isAdminAccount) return;
-                                    setOpenActionUserId(null);
-                                    setDeleteUser(user);
-                                    setDeleteOpen(true);
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-error transition-colors hover:bg-error-soft disabled:pointer-events-none disabled:opacity-50"
-                                >
-                                  <Trash2 />
-                                  Delete permanently
-                                </button>
-                              </div>
+        {loading && !data ? (
+          <TableSkeleton />
+        ) : users.length === 0 ? (
+          <EmptyState icon={Users} title={search ? "No one matches your search" : "No users here"} />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead className="hidden sm:table-cell">Role</TableHead>
+                <TableHead className="hidden lg:table-cell">Location</TableHead>
+                <TableHead className="hidden md:table-cell">Joined</TableHead>
+                <TableHead className="hidden sm:table-cell">Status</TableHead>
+                <TableHead className="w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => {
+                const roles = rolesOf(user);
+                const location = locationText(user);
+                return (
+                  <TableRow key={user.id} className="cursor-pointer" onClick={() => openUser(user)}>
+                    <TableCell className="max-w-80">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <Avatar src={user.profile?.avatar} name={displayName(user)} className="size-8" />
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
+                            <span className="truncate">{displayName(user)}</span>
+                            {user.isVerified && (
+                              <BadgeCheck className="size-3.5 shrink-0 text-primary" aria-label="Verified" />
                             )}
-                          </div>
+                          </p>
+                          <p className="truncate text-xs text-muted">
+                            {user.email ?? (user.username ? `@${user.username}` : user.id)}
+                          </p>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <div className="flex flex-wrap gap-1">
+                        {roles.includes(UserRole.ADMIN) && <Badge>Admin</Badge>}
+                        {isSeller(user) ? (
+                          <Badge variant="accent">Seller</Badge>
+                        ) : (
+                          !roles.includes(UserRole.ADMIN) && <span className="text-muted">Buyer</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden max-w-48 truncate text-muted lg:table-cell">{location || "—"}</TableCell>
+                    <TableCell className="hidden whitespace-nowrap text-muted md:table-cell" title={formatDate(user.createdAt)}>
+                      {formatRelative(user.createdAt)}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      {user.isSuspended ? (
+                        <Badge variant="destructive">Suspended</Badge>
+                      ) : (
+                        <Badge variant="success">Active</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <UserActionMenu
+                        user={user}
+                        api={api}
+                        onViewPosts={(target) => openUser(target, "posts")}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+
+        {meta && meta.totalPages > 1 && (
+          <div className="border-t border-border px-4 pb-3">
+            <Pagination meta={meta} onPageChange={setPage} />
+          </div>
+        )}
       </Card>
 
-      {meta && <Pagination meta={meta} onPageChange={setPage} />}
-
-      <RolesDialog user={rolesUserFresh} open={rolesOpen} onOpenChange={setRolesOpen} />
-      <VerifyDialog user={verifyUserFresh} open={verifyOpen} onOpenChange={setVerifyOpen} />
-      <SocialProofDialog
-        user={socialProofUserFresh}
-        open={socialProofOpen}
-        onOpenChange={setSocialProofOpen}
+      <UserSheet
+        user={openedFresh}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        tab={sheetTab}
+        onTabChange={setSheetTab}
+        api={api}
       />
-      <SuspendDialog user={suspendUserFresh} open={suspendOpen} onOpenChange={setSuspendOpen} />
-      <DeleteUserDialog user={deleteUser} open={deleteOpen} onOpenChange={setDeleteOpen} />
       <CreateStaffDialog open={createOpen} onOpenChange={setCreateOpen} />
-    </div>
+      {api.dialogs}
+    </>
   );
 }

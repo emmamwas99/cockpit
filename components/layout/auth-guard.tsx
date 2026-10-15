@@ -31,8 +31,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!hydrated || !allowed) {
     return (
-      <div className="flex min-h-screen">
-        <div className="hidden w-60 border-r border-border p-4 md:block">
+      <div className="flex min-h-screen bg-canvas">
+        <div className="hidden w-60 border-r border-border bg-elevated p-4 md:block">
           <Skeleton className="mb-6 h-8 w-32" />
           <div className="space-y-2">
             <Skeleton className="h-9 w-full" />
