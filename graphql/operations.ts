@@ -62,6 +62,7 @@ import type {
   PaginatedUsers,
   SellerPerformance,
   UserRole,
+  WebPushStatus,
 } from "./types";
 
 // ── Fragments ────────────────────────────────────────────────────────────────
@@ -899,6 +900,48 @@ const TEAM_MESSAGE_FIELDS = gql`
     broadcastId
     readAt
     createdAt
+  }
+`;
+
+export const MY_WEB_PUSH_STATUS: TypedDocumentNode<{ myWebPushStatus: WebPushStatus }, Record<string, never>> = gql`
+  query MyWebPushStatus {
+    myWebPushStatus {
+      isAvailable
+      isEnabled
+      isOptedOut
+      activeSubscriptionCount
+      publicKey
+    }
+  }
+`;
+
+export const SAVE_WEB_PUSH_SUBSCRIPTION: TypedDocumentNode<
+  { saveWebPushSubscription: WebPushStatus },
+  { input: { endpoint: string; p256dh: string; auth: string; locale?: string; userAgent?: string } }
+> = gql`
+  mutation SaveWebPushSubscription($input: SaveWebPushSubscriptionInput!) {
+    saveWebPushSubscription(input: $input) {
+      isAvailable
+      isEnabled
+      isOptedOut
+      activeSubscriptionCount
+      publicKey
+    }
+  }
+`;
+
+export const REMOVE_ALL_WEB_PUSH_SUBSCRIPTIONS: TypedDocumentNode<
+  { removeAllWebPushSubscriptions: WebPushStatus },
+  Record<string, never>
+> = gql`
+  mutation RemoveAllWebPushSubscriptions {
+    removeAllWebPushSubscriptions {
+      isAvailable
+      isEnabled
+      isOptedOut
+      activeSubscriptionCount
+      publicKey
+    }
   }
 `;
 

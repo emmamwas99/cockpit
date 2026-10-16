@@ -413,6 +413,14 @@ export interface AdminPostMediaRecovery {
   details: string[];
 }
 
+export interface WebPushStatus {
+  isAvailable: boolean;
+  isEnabled: boolean;
+  isOptedOut: boolean;
+  activeSubscriptionCount: number;
+  publicKey?: string | null;
+}
+
 // ── Shopi team messages ──────────────────────────────────────────────────────
 
 export enum TeamMessageSender {

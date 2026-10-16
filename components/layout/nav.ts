@@ -19,8 +19,8 @@ export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** Which live count, if any, this item carries. */
-  badge?: "pendingReview" | "draftAttention" | "teamUnread";
+  /** Only Posts carries a live count: items awaiting review. */
+  badge?: "pendingReview";
 }
 
 export interface NavSection {
@@ -41,7 +41,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Marketplace",
     items: [
       { href: "/posts", label: "Posts", icon: Clapperboard, badge: "pendingReview" },
-      { href: "/drafts", label: "Drafts", icon: FilePen, badge: "draftAttention" },
+      { href: "/drafts", label: "Drafts", icon: FilePen },
       { href: "/boosts", label: "Boosts", icon: Rocket },
       { href: "/categories", label: "Categories", icon: FolderTree },
     ],
@@ -65,7 +65,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Platform",
     items: [
-      { href: "/team", label: "Shopi team", icon: Megaphone, badge: "teamUnread" },
+      { href: "/team", label: "Shopi team", icon: Megaphone },
       { href: "/system", label: "System", icon: Activity },
     ],
   },

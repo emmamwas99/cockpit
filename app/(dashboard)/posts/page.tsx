@@ -142,7 +142,7 @@ function PostsScreen() {
               tabs={POST_TABS.map((t) => ({
                 key: t.key,
                 label: t.label,
-                count: counts?.[t.countKey],
+                count: t.key === "pending" ? counts?.[t.countKey] : undefined,
                 attention: t.attention,
                 href: tabHref(t.key),
               }))}

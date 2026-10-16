@@ -22,6 +22,7 @@ export const metadata: Metadata = {
   },
   description: "Admin dashboard for the Shopi social commerce platform",
   applicationName: "Shopi Admin",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

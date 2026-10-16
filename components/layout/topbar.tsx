@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Brand } from "@/components/layout/sidebar";
+import { AdminPwaMenuItems } from "@/components/pwa/admin-pwa-menu-items";
 
 export function Topbar() {
   const router = useRouter();
@@ -80,6 +81,8 @@ export function Topbar() {
               <p className="truncate text-sm font-medium text-foreground">{name}</p>
               {user?.email && <p className="truncate text-xs text-muted">{user.email}</p>}
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <AdminPwaMenuItems />
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => void handleLogout()}>
               <LogOut /> Sign out
