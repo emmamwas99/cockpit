@@ -42,6 +42,7 @@ import type {
   ReferralRewardStatus,
   ReferralStatus,
   AdminMediaRecoverySummary,
+  AdminPostMediaRecovery,
   AdminSendTeamMessageInput,
   PaginatedTeamBroadcasts,
   PaginatedTeamThreads,
@@ -859,8 +860,32 @@ export const ADMIN_TRIGGER_MEDIA_RECOVERY: TypedDocumentNode<
       stuckContents
       replayed
       tiktokJobs
+      finishedNow
+      stillEncoding
+      missingOriginals
+      failedNow
+      queuesAvailable
     }
   }
+`;
+
+export const ADMIN_RECOVER_POST_MEDIA: TypedDocumentNode<
+  { adminRecoverPostMedia: AdminPostMediaRecovery },
+  { contentId: string }
+> = gql`
+  mutation AdminRecoverPostMedia($contentId: String!) {
+    adminRecoverPostMedia(contentId: $contentId) {
+      ready
+      processing
+      missing
+      failed
+      details
+      content {
+        ...AdminContentFields
+      }
+    }
+  }
+  ${ADMIN_CONTENT_FIELDS}
 `;
 
 // ── Shopi team messages ──────────────────────────────────────────────────────

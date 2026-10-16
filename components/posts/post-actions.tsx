@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   Images,
+  LifeBuoy,
   Loader2,
   MoreHorizontal,
   Rocket,
@@ -16,12 +17,18 @@ import {
   X,
 } from "lucide-react";
 import {
+  ADMIN_RECOVER_POST_MEDIA,
   ADMIN_REMOVE_CONTENT,
   APPROVE_CONTENT,
   REJECT_CONTENT,
   SET_CONTENT_LIVE,
 } from "@/graphql/operations";
-import { ContentStatus, type AdminContent } from "@/graphql/types";
+import {
+  ContentSource,
+  ContentStatus,
+  MediaProcessingStatus,
+  type AdminContent,
+} from "@/graphql/types";
 import { postPublicState, postPublicUrl } from "@/lib/post-url";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -58,8 +65,23 @@ function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Something went wrong";
 }
 
+/**
+ * Uploaded media that never finished — a video still "processing" or a post
+ * failed by its media. What "Recover media" can fix from the R2 original.
+ */
+export function needsMediaRecovery(post: AdminContent): boolean {
+  if (post.source === ContentSource.TIKTOK_EMBED || post.status === ContentStatus.REMOVED) return false;
+  return (
+    post.status === ContentStatus.PROCESSING ||
+    post.status === ContentStatus.FAILED ||
+    (post.media ?? []).some(
+      (item) => item.processingStatus && item.processingStatus !== MediaProcessingStatus.READY,
+    )
+  );
+}
+
 export interface PostAction {
-  key: "view" | "approve" | "reject" | "hide" | "live" | "boost" | "media" | "remove";
+  key: "view" | "approve" | "reject" | "hide" | "live" | "boost" | "recover" | "media" | "remove";
   label: string;
   icon: typeof Check;
   onSelect: () => void;
@@ -84,6 +106,9 @@ export function usePostActions(post: AdminContent) {
   const [reject, { loading: rejecting }] = useMutation(REJECT_CONTENT, { refetchQueries: POST_REFETCH });
   const [setLive, { loading: togglingLive }] = useMutation(SET_CONTENT_LIVE, { refetchQueries: POST_REFETCH });
   const [remove, { loading: removing }] = useMutation(ADMIN_REMOVE_CONTENT, { refetchQueries: POST_REFETCH });
+  const [recoverMedia, { loading: recovering }] = useMutation(ADMIN_RECOVER_POST_MEDIA, {
+    refetchQueries: POST_REFETCH,
+  });
 
   async function handleApprove() {
     try {
@@ -118,6 +143,42 @@ export function usePostActions(post: AdminContent) {
     try {
       await setLive({ variables: { contentId: post.id, live } });
       toast.success(live ? "Live again" : "Hidden from buyers");
+    } catch (err) {
+      toast.error(errMessage(err));
+    }
+  }
+
+  /**
+   * Finish this post's media now. The API asks Mux directly and re-sends the
+   * R2 original if Mux has nothing usable, waiting up to 25s, so a short video
+   * usually comes back finished. The returned post updates the open panel.
+   */
+  async function handleRecoverMedia() {
+    try {
+      const { data } = await recoverMedia({ variables: { contentId: post.id } });
+      const result = data?.adminRecoverPostMedia;
+      if (!result) return;
+
+      if (result.missing > 0) {
+        toast.error("Couldn't recover: the original upload isn't in storage", {
+          description: "Use Replace media to upload it again.",
+        });
+      } else if (result.failed > 0) {
+        toast.error("The original couldn't be processed", { description: result.details.join(" · ") });
+      } else if (result.processing > 0) {
+        toast.info("Sent to Mux — still encoding", {
+          description: "It finishes on its own, or press Recover media again in a minute.",
+        });
+      } else {
+        const after = result.content;
+        toast.success(
+          after.status === ContentStatus.ACTIVE
+            ? "Media recovered — the post is live"
+            : after.approval.isApproved
+              ? "Media recovered"
+              : "Media recovered — ready to review",
+        );
+      }
     } catch (err) {
       toast.error(errMessage(err));
     }
@@ -189,6 +250,14 @@ export function usePostActions(post: AdminContent) {
       onSelect: () => window.open(postPublicUrl(post), "_blank", "noopener,noreferrer"),
       // The public site only serves live posts; anything else is "not found".
       visible: postPublicState(post).isPublic,
+    },
+    {
+      key: "recover",
+      label: "Recover media",
+      icon: LifeBuoy,
+      onSelect: () => void handleRecoverMedia(),
+      visible: needsMediaRecovery(post),
+      loading: recovering,
     },
     {
       key: "media",
@@ -287,7 +356,7 @@ export function usePostActions(post: AdminContent) {
     </>
   );
 
-  return { actions, dialogs, busy: approving || rejecting || togglingLive || removing };
+  return { actions, dialogs, busy: approving || rejecting || togglingLive || removing || recovering };
 }
 
 function ActionMenuItems({ actions }: { actions: PostAction[] }) {
@@ -376,7 +445,9 @@ export function PostRowActions({ post }: { post: AdminContent }) {
  */
 export function PostActionBar({ post, className }: { post: AdminContent; className?: string }) {
   const { actions, dialogs, busy } = usePostActions(post);
-  const primaryKeys: PostAction["key"][] = ["approve", "reject", "hide", "live", "boost"];
+  // "Recover media" only shows while media is unfinished, and then it's the
+  // thing to do first, so it sits with the main moves.
+  const primaryKeys: PostAction["key"][] = ["approve", "reject", "hide", "live", "boost", "recover"];
   const primary = actions.filter((action) => primaryKeys.includes(action.key));
   const rest = actions.filter((action) => !primaryKeys.includes(action.key));
 

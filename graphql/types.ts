@@ -378,7 +378,10 @@ export interface AdminUserDeletionSummary {
   updatedExternalReferences: number;
 }
 
-/** Counts returned by `adminTriggerMediaRecovery` — what the sweep re-queued. */
+/**
+ * Counts returned by `adminTriggerMediaRecovery`: what was finished on the spot
+ * (asked Mux and R2 directly) and what the queue sweep re-queued.
+ */
 export interface AdminMediaRecoverySummary {
   triggeredAt: string;
   scannedAssets: number;
@@ -387,6 +390,27 @@ export interface AdminMediaRecoverySummary {
   stuckContents: number;
   replayed: number;
   tiktokJobs: number;
+  /** Media finished during this run, no queue needed. */
+  finishedNow: number;
+  /** Videos Mux is still encoding; they finish on their own. */
+  stillEncoding: number;
+  /** Media with no original in R2 to rebuild from. */
+  missingOriginals: number;
+  /** Media whose original couldn't be processed. */
+  failedNow: number;
+  /** False when Redis was down and the queue sweep was skipped. */
+  queuesAvailable: boolean;
+}
+
+/** Returned by `adminRecoverPostMedia`: the post as it is now, and how its media went. */
+export interface AdminPostMediaRecovery {
+  content: AdminContent;
+  ready: number;
+  processing: number;
+  missing: number;
+  failed: number;
+  /** One line per media item that isn't finished. */
+  details: string[];
 }
 
 // ── Shopi team messages ──────────────────────────────────────────────────────
