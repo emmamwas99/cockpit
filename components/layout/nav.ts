@@ -20,7 +20,7 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   /** Which live count, if any, this item carries. */
-  badge?: "pendingReview" | "teamUnread";
+  badge?: "pendingReview" | "draftAttention" | "teamUnread";
 }
 
 export interface NavSection {
@@ -41,7 +41,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Marketplace",
     items: [
       { href: "/posts", label: "Posts", icon: Clapperboard, badge: "pendingReview" },
-      { href: "/drafts", label: "Drafts", icon: FilePen },
+      { href: "/drafts", label: "Drafts", icon: FilePen, badge: "draftAttention" },
       { href: "/boosts", label: "Boosts", icon: Rocket },
       { href: "/categories", label: "Categories", icon: FolderTree },
     ],

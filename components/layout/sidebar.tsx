@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTeamUnreadThreads } from "@/components/team/team-inbox-sync";
 import { usePendingReviewCount } from "@/components/posts/pending-review-sync";
+import { useDraftAttentionCount } from "@/components/drafts/draft-attention-sync";
 import { NAV_SECTIONS, isActive, type NavItem } from "./nav";
 
 export function Brand() {
@@ -20,7 +21,11 @@ export function Brand() {
 }
 
 export function useNavCounts(): Record<NonNullable<NavItem["badge"]>, number> {
-  return { pendingReview: usePendingReviewCount(), teamUnread: useTeamUnreadThreads() };
+  return {
+    pendingReview: usePendingReviewCount(),
+    draftAttention: useDraftAttentionCount(),
+    teamUnread: useTeamUnreadThreads(),
+  };
 }
 
 /** The menu itself — shared by the desktop sidebar and the mobile drawer. */
@@ -60,7 +65,11 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                     <span className="ml-auto rounded-md bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-on-brand">
                       {count > 99 ? "99+" : count}
                       <span className="sr-only">
-                        {badge === "pendingReview" ? " posts waiting for review" : " unread replies"}
+                        {badge === "pendingReview"
+                          ? " posts waiting for review"
+                          : badge === "draftAttention"
+                            ? " drafts needing attention"
+                            : " unread replies"}
                       </span>
                     </span>
                   )}
