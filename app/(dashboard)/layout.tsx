@@ -4,6 +4,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { TeamInboxSync } from "@/components/team/team-inbox-sync";
 import { PendingReviewSync } from "@/components/posts/pending-review-sync";
 import { DraftAttentionSync } from "@/components/drafts/draft-attention-sync";
+import { VerificationSync } from "@/components/verification/verification-ui";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,6 +12,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <TeamInboxSync />
       <PendingReviewSync />
       <DraftAttentionSync />
+      <VerificationSync />
       <div className="flex min-h-screen bg-canvas">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">

@@ -1266,3 +1266,191 @@ export interface AdminDraftDetailsInput {
   priceAmount?: number | null;
   negotiable?: boolean | null;
 }
+
+// ── Shop verification ───────────────────────────────────────────────────────
+
+export enum ShopVerificationStatus {
+  DRAFT = "DRAFT",
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  REVOKED = "REVOKED",
+}
+
+/** Why an application wasn't approved. The API words each one for the seller. */
+export enum ShopVerificationIssue {
+  BUSINESS_NAME_MISMATCH = "BUSINESS_NAME_MISMATCH",
+  PERMIT_UNREADABLE = "PERMIT_UNREADABLE",
+  PERMIT_EXPIRED = "PERMIT_EXPIRED",
+  PERMIT_NOT_VALID = "PERMIT_NOT_VALID",
+  SHOP_PHOTO_NOT_REAL = "SHOP_PHOTO_NOT_REAL",
+  SHOP_PHOTO_UNCLEAR = "SHOP_PHOTO_UNCLEAR",
+  LOCATION_INCOMPLETE = "LOCATION_INCOMPLETE",
+  LOCATION_MISMATCH = "LOCATION_MISMATCH",
+  OTHER = "OTHER",
+}
+
+export enum ShopVerificationRequirement {
+  BUSINESS_NAME = "BUSINESS_NAME",
+  PERMIT = "PERMIT",
+  SHOP_PHOTO = "SHOP_PHOTO",
+  LOCATION = "LOCATION",
+}
+
+export enum ShopVerificationEventType {
+  SUBMITTED = "SUBMITTED",
+  WITHDRAWN = "WITHDRAWN",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  REVOKED = "REVOKED",
+  GRANTED = "GRANTED",
+}
+
+/** A permit or shop photo. `url` is a private link that expires — refetch for a fresh one. */
+export interface ShopVerificationDocument {
+  kind: "PERMIT" | "SHOP_PHOTO";
+  fileName?: string | null;
+  contentType: string;
+  isPdf: boolean;
+  sizeBytes: number;
+  width?: number | null;
+  height?: number | null;
+  uploadedAt: string;
+  url: string;
+  urlExpiresAt: string;
+}
+
+export interface ShopVerificationLocation {
+  county?: string | null;
+  countyId?: string | null;
+  subregion?: string | null;
+  subCountyId?: string | null;
+  wardName?: string | null;
+  wardId?: string | null;
+  placeName?: string | null;
+  formattedAddress?: string | null;
+  placeId?: string | null;
+  addressLine?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+export interface ShopVerificationIssueDetail {
+  issue: ShopVerificationIssue;
+  title: string;
+  detail: string;
+  requirement?: ShopVerificationRequirement | null;
+}
+
+export interface ShopVerification {
+  id: string;
+  status: ShopVerificationStatus;
+  businessName?: string | null;
+  location?: ShopVerificationLocation | null;
+  permit?: ShopVerificationDocument | null;
+  shopPhoto?: ShopVerificationDocument | null;
+  missing: ShopVerificationRequirement[];
+  canEdit: boolean;
+  submittedAt?: string | null;
+  firstSubmittedAt?: string | null;
+  submissionCount: number;
+  reviewedAt?: string | null;
+  issues: ShopVerificationIssueDetail[];
+  decisionNote?: string | null;
+  verifiedAt?: string | null;
+  revokedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminVerificationApplicant {
+  id: string;
+  username?: string | null;
+  displayName: string;
+  email?: string | null;
+  avatar?: string | null;
+  contactPhone?: string | null;
+  isVerified: boolean;
+  isSuspended: boolean;
+  memberSince: string;
+  liveListingCount: number;
+}
+
+/** What the shop photo's own metadata says. Hints for the reviewer, never verdicts. */
+export interface AdminVerificationPhotoCheck {
+  hasCameraDetails: boolean;
+  camera?: string | null;
+  takenAt?: string | null;
+  software?: string | null;
+  hasLocation: boolean;
+  distanceFromPinKm?: number | null;
+}
+
+export interface AdminVerificationListingPlace {
+  label: string;
+  county?: string | null;
+  count: number;
+}
+
+export interface AdminVerificationEvent {
+  type: ShopVerificationEventType;
+  at: string;
+  actorName?: string | null;
+  issues: ShopVerificationIssueDetail[];
+  note?: string | null;
+  internalNote?: string | null;
+}
+
+export interface AdminShopVerification {
+  /** The seller's user id — one application per seller. */
+  userId: string;
+  /** Null when the seller never started. */
+  application?: ShopVerification | null;
+  /** Null when the account is gone. */
+  applicant?: AdminVerificationApplicant | null;
+  internalNote?: string | null;
+  permitExpiresAt?: string | null;
+  grantedManually: boolean;
+  reviewerName?: string | null;
+  /** Detail query only. */
+  photoCheck?: AdminVerificationPhotoCheck | null;
+  listingPlaces?: AdminVerificationListingPlace[];
+  listingCountyMatches?: boolean | null;
+  events?: AdminVerificationEvent[];
+}
+
+export interface PaginatedAdminShopVerifications {
+  data: AdminShopVerification[];
+  meta: PaginationMeta;
+}
+
+export interface AdminShopVerificationCounts {
+  pending: number;
+  approved: number;
+  rejected: number;
+  revoked: number;
+  draft: number;
+  all: number;
+}
+
+export interface AdminApproveShopVerificationInput {
+  permitExpiresAt?: string | null;
+  note?: string | null;
+  internalNote?: string | null;
+}
+
+export interface AdminRejectShopVerificationInput {
+  issues: ShopVerificationIssue[];
+  note?: string | null;
+  internalNote?: string | null;
+}
+
+export interface AdminRevokeShopVerificationInput {
+  reason: string;
+  internalNote?: string | null;
+}
+
+export interface AdminGrantShopVerificationInput {
+  internalNote: string;
+  note?: string | null;
+}

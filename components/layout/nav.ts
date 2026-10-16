@@ -1,5 +1,6 @@
 import {
   Activity,
+  BadgeCheck,
   ChartLine,
   Clapperboard,
   FilePen,
@@ -19,8 +20,8 @@ export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** Only Posts carries a live count: items awaiting review. */
-  badge?: "pendingReview";
+  /** Live counts of work waiting: posts to review, shops to verify. */
+  badge?: "pendingReview" | "pendingVerification";
 }
 
 export interface NavSection {
@@ -50,6 +51,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "People",
     items: [
       { href: "/users", label: "Users", icon: Users },
+      { href: "/verification", label: "Verification", icon: BadgeCheck, badge: "pendingVerification" },
       { href: "/referrals", label: "Referrals", icon: Gift },
       { href: "/conversations", label: "Conversations", icon: MessagesSquare },
       { href: "/ratings", label: "App ratings", icon: Star },

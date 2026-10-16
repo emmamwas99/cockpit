@@ -63,6 +63,14 @@ import type {
   SellerPerformance,
   UserRole,
   WebPushStatus,
+  AdminApproveShopVerificationInput,
+  AdminGrantShopVerificationInput,
+  AdminRejectShopVerificationInput,
+  AdminRevokeShopVerificationInput,
+  AdminShopVerification,
+  AdminShopVerificationCounts,
+  PaginatedAdminShopVerifications,
+  ShopVerificationStatus,
 } from "./types";
 
 // ── Fragments ────────────────────────────────────────────────────────────────
@@ -1165,17 +1173,6 @@ export const ADMIN_UPDATE_USER_ROLES: TypedDocumentNode<
   ${ADMIN_USER_FIELDS}
 `;
 
-export const ADMIN_SET_USER_VERIFIED: TypedDocumentNode<
-  { adminSetUserVerified: AdminUser },
-  { userId: string; verified: boolean }
-> = gql`
-  mutation AdminSetUserVerified($userId: String!, $verified: Boolean!) {
-    adminSetUserVerified(userId: $userId, verified: $verified) {
-      ...AdminUserFields
-    }
-  }
-  ${ADMIN_USER_FIELDS}
-`;
 
 export const ADMIN_SET_USER_SOCIAL_PROOF: TypedDocumentNode<
   { adminSetUserSocialProof: AdminUser },
@@ -2231,4 +2228,233 @@ export const ADMIN_DISCARD_DRAFT: TypedDocumentNode<
     }
   }
   ${ADMIN_DRAFT_FIELDS}
+`;
+
+// ── Shop verification ────────────────────────────────────────────────────────
+
+const SHOP_VERIFICATION_FIELDS = gql`
+  fragment ShopVerificationFields on ShopVerification {
+    id
+    status
+    businessName
+    location {
+      county
+      countyId
+      subregion
+      wardName
+      placeName
+      formattedAddress
+      placeId
+      addressLine
+      latitude
+      longitude
+    }
+    permit {
+      kind
+      fileName
+      contentType
+      isPdf
+      sizeBytes
+      width
+      height
+      uploadedAt
+      url
+      urlExpiresAt
+    }
+    shopPhoto {
+      kind
+      fileName
+      contentType
+      isPdf
+      sizeBytes
+      width
+      height
+      uploadedAt
+      url
+      urlExpiresAt
+    }
+    missing
+    canEdit
+    submittedAt
+    firstSubmittedAt
+    submissionCount
+    reviewedAt
+    issues {
+      issue
+      title
+      detail
+      requirement
+    }
+    decisionNote
+    verifiedAt
+    revokedAt
+    createdAt
+    updatedAt
+  }
+`;
+
+const ADMIN_SHOP_VERIFICATION_ROW_FIELDS = gql`
+  fragment AdminShopVerificationRowFields on AdminShopVerification {
+    userId
+    grantedManually
+    reviewerName
+    permitExpiresAt
+    internalNote
+    applicant {
+      id
+      username
+      displayName
+      email
+      avatar
+      contactPhone
+      isVerified
+      isSuspended
+      memberSince
+      liveListingCount
+    }
+    application {
+      ...ShopVerificationFields
+    }
+  }
+  ${SHOP_VERIFICATION_FIELDS}
+`;
+
+/** Everything the review panel shows. Every decision returns this too. */
+const ADMIN_SHOP_VERIFICATION_DETAIL_FIELDS = gql`
+  fragment AdminShopVerificationDetailFields on AdminShopVerification {
+    ...AdminShopVerificationRowFields
+    listingCountyMatches
+    photoCheck {
+      hasCameraDetails
+      camera
+      takenAt
+      software
+      hasLocation
+      distanceFromPinKm
+    }
+    listingPlaces {
+      label
+      county
+      count
+    }
+    events {
+      type
+      at
+      actorName
+      note
+      internalNote
+      issues {
+        issue
+        title
+      }
+    }
+  }
+  ${ADMIN_SHOP_VERIFICATION_ROW_FIELDS}
+`;
+
+export const ADMIN_SHOP_VERIFICATIONS: TypedDocumentNode<
+  { adminShopVerifications: PaginatedAdminShopVerifications },
+  { page: number; limit: number; status?: ShopVerificationStatus | null; search?: string | null }
+> = gql`
+  query AdminShopVerifications($page: Int!, $limit: Int!, $status: ShopVerificationStatus, $search: String) {
+    adminShopVerifications(page: $page, limit: $limit, status: $status, search: $search) {
+      data {
+        ...AdminShopVerificationRowFields
+      }
+      meta {
+        page
+        limit
+        total
+        totalPages
+        hasNextPage
+        hasPrevPage
+      }
+    }
+  }
+  ${ADMIN_SHOP_VERIFICATION_ROW_FIELDS}
+`;
+
+export const ADMIN_SHOP_VERIFICATION_COUNTS: TypedDocumentNode<
+  { adminShopVerificationCounts: AdminShopVerificationCounts },
+  { search?: string | null }
+> = gql`
+  query AdminShopVerificationCounts($search: String) {
+    adminShopVerificationCounts(search: $search) {
+      pending
+      approved
+      rejected
+      revoked
+      draft
+      all
+    }
+  }
+`;
+
+export const ADMIN_PENDING_SHOP_VERIFICATION_COUNT: TypedDocumentNode<
+  { adminPendingShopVerificationCount: number },
+  Record<string, never>
+> = gql`
+  query AdminPendingShopVerificationCount {
+    adminPendingShopVerificationCount
+  }
+`;
+
+export const ADMIN_SHOP_VERIFICATION: TypedDocumentNode<
+  { adminShopVerification: AdminShopVerification },
+  { userId: string }
+> = gql`
+  query AdminShopVerification($userId: String!) {
+    adminShopVerification(userId: $userId) {
+      ...AdminShopVerificationDetailFields
+    }
+  }
+  ${ADMIN_SHOP_VERIFICATION_DETAIL_FIELDS}
+`;
+
+export const ADMIN_APPROVE_SHOP_VERIFICATION: TypedDocumentNode<
+  { adminApproveShopVerification: AdminShopVerification },
+  { userId: string; input?: AdminApproveShopVerificationInput | null }
+> = gql`
+  mutation AdminApproveShopVerification($userId: String!, $input: AdminApproveShopVerificationInput) {
+    adminApproveShopVerification(userId: $userId, input: $input) {
+      ...AdminShopVerificationDetailFields
+    }
+  }
+  ${ADMIN_SHOP_VERIFICATION_DETAIL_FIELDS}
+`;
+
+export const ADMIN_REJECT_SHOP_VERIFICATION: TypedDocumentNode<
+  { adminRejectShopVerification: AdminShopVerification },
+  { userId: string; input: AdminRejectShopVerificationInput }
+> = gql`
+  mutation AdminRejectShopVerification($userId: String!, $input: AdminRejectShopVerificationInput!) {
+    adminRejectShopVerification(userId: $userId, input: $input) {
+      ...AdminShopVerificationDetailFields
+    }
+  }
+  ${ADMIN_SHOP_VERIFICATION_DETAIL_FIELDS}
+`;
+
+export const ADMIN_REVOKE_SHOP_VERIFICATION: TypedDocumentNode<
+  { adminRevokeShopVerification: AdminShopVerification },
+  { userId: string; input: AdminRevokeShopVerificationInput }
+> = gql`
+  mutation AdminRevokeShopVerification($userId: String!, $input: AdminRevokeShopVerificationInput!) {
+    adminRevokeShopVerification(userId: $userId, input: $input) {
+      ...AdminShopVerificationDetailFields
+    }
+  }
+  ${ADMIN_SHOP_VERIFICATION_DETAIL_FIELDS}
+`;
+
+export const ADMIN_GRANT_SHOP_VERIFICATION: TypedDocumentNode<
+  { adminGrantShopVerification: AdminShopVerification },
+  { userId: string; input: AdminGrantShopVerificationInput }
+> = gql`
+  mutation AdminGrantShopVerification($userId: String!, $input: AdminGrantShopVerificationInput!) {
+    adminGrantShopVerification(userId: $userId, input: $input) {
+      ...AdminShopVerificationDetailFields
+    }
+  }
+  ${ADMIN_SHOP_VERIFICATION_DETAIL_FIELDS}
 `;

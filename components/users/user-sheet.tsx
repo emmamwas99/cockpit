@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@apollo/client/react";
-import { ArrowLeft, BadgeCheck, Megaphone } from "lucide-react";
-import { ADMIN_CONTENT_COUNTS } from "@/graphql/operations";
+import { ArrowLeft, Megaphone } from "lucide-react";
+import { ADMIN_CONTENT_COUNTS, ADMIN_SHOP_VERIFICATION } from "@/graphql/operations";
 import { UserRole, type AdminContent, type AdminUser } from "@/graphql/types";
 import { displayName, formatDate, formatNumber, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ import { CountTabs } from "@/components/shared/page";
 import { SellerPosts } from "@/components/posts/seller-posts";
 import { PostDetail } from "@/components/posts/post-detail";
 import { referrerLabel } from "@/components/posts/post-badges";
+import { VerificationStatusBadge, VerifiedTick } from "@/components/verification/verification-ui";
 import { UserActionMenu, isSeller, rolesOf, type UserActionsApi } from "./user-actions";
 
 export type UserSheetTab = "profile" | "posts";
@@ -63,7 +64,50 @@ function Fact({ label, value }: { label: string; value?: React.ReactNode }) {
   );
 }
 
-function Profile({ user, onViewPosts }: { user: AdminUser; onViewPosts: () => void }) {
+/** Where the user stands on shop verification, with the way into the review panel. */
+function VerificationRow({ user, onOpen }: { user: AdminUser; onOpen: () => void }) {
+  const { data } = useQuery(ADMIN_SHOP_VERIFICATION, {
+    variables: { userId: user.id },
+    fetchPolicy: "cache-and-network",
+  });
+  const detail = data?.adminShopVerification.userId === user.id ? data.adminShopVerification : undefined;
+  const application = detail?.application;
+
+  return (
+    <section className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-muted">Shop verification</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-foreground">
+          {application ? (
+            <>
+              <VerificationStatusBadge status={application.status} />
+              {application.businessName && <span className="truncate">{application.businessName}</span>}
+            </>
+          ) : user.isVerified ? (
+            <span className="inline-flex items-center gap-1.5">
+              <VerifiedTick className="size-3.5" /> Verified before applications existed
+            </span>
+          ) : (
+            <span className="text-muted">{detail ? "Hasn't applied" : "—"}</span>
+          )}
+        </div>
+      </div>
+      <Button variant="outline" size="sm" onClick={onOpen}>
+        {application ? "Open" : "Details"}
+      </Button>
+    </section>
+  );
+}
+
+function Profile({
+  user,
+  onViewPosts,
+  onOpenVerification,
+}: {
+  user: AdminUser;
+  onViewPosts: () => void;
+  onOpenVerification: () => void;
+}) {
   const seller = isSeller(user);
   const { data } = useQuery(ADMIN_CONTENT_COUNTS, {
     variables: { creatorId: user.id },
@@ -107,6 +151,8 @@ function Profile({ user, onViewPosts }: { user: AdminUser; onViewPosts: () => vo
           </div>
         </section>
       )}
+
+      <VerificationRow user={user} onOpen={onOpenVerification} />
 
       {user.profile?.bio && <p className="text-sm text-foreground">{user.profile.bio}</p>}
 
@@ -176,9 +222,7 @@ export function UserSheet({
                 <div className="min-w-0 flex-1">
                   <SheetTitle className="flex items-center gap-1.5">
                     <span className="truncate">{displayName(user)}</span>
-                    {user.isVerified && (
-                      <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="Verified" />
-                    )}
+                    {user.isVerified && <VerifiedTick />}
                   </SheetTitle>
                   <SheetDescription className="truncate">
                     {[user.username && `@${user.username}`, user.email].filter(Boolean).join(" · ")}
@@ -225,7 +269,11 @@ export function UserSheet({
                   <SellerPosts creatorId={user.id} onOpenPost={setPost} />
                 )
               ) : (
-                <Profile user={user} onViewPosts={() => onTabChange("posts")} />
+                <Profile
+                  user={user}
+                  onViewPosts={() => onTabChange("posts")}
+                  onOpenVerification={() => api.open("verification", user)}
+                />
               )}
             </SheetBody>
           </>

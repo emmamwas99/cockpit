@@ -6,6 +6,7 @@ import { useQuery } from "@apollo/client/react";
 import {
   AlertTriangle,
   ArrowRight,
+  BadgeCheck,
   Clock3,
   Flag,
   Gift,
@@ -26,6 +27,7 @@ import { ContentStatus, type AdminContent } from "@/graphql/types";
 import { displayName, formatKes, formatNumber, formatRelative } from "@/lib/format";
 import { useAuthStore } from "@/stores/auth";
 import { useTeamUnreadThreads } from "@/components/team/team-inbox-sync";
+import { usePendingVerificationCount } from "@/components/verification/verification-ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TimeSeriesChart } from "@/components/charts/time-series-chart";
@@ -61,6 +63,7 @@ function Total({ label, value, hint }: { label: string; value?: React.ReactNode;
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const teamUnread = useTeamUnreadThreads();
+  const verificationsWaiting = usePendingVerificationCount();
   const [opened, setOpened] = useState<AdminContent | null>(null);
 
   const { data: statsData } = useQuery(ADMIN_DASHBOARD_STATS, { fetchPolicy: "cache-and-network" });
@@ -107,6 +110,13 @@ export default function DashboardPage() {
               description="Approve or reject new listings"
               count={stats?.pendingReviewContent}
               href="/posts?tab=pending"
+            />
+            <AttentionRow
+              icon={BadgeCheck}
+              label="Shops waiting for verification"
+              description="Check permits, shop photos and locations"
+              count={verificationsWaiting}
+              href="/verification"
             />
             <AttentionRow
               icon={Flag}

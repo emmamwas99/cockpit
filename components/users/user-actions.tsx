@@ -30,7 +30,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ComposeTeamMessageDialog } from "@/components/team/compose-team-message-dialog";
-import { DeleteUserDialog, RolesDialog, SuspendDialog, VerifyDialog } from "./user-dialogs";
+import { VerificationSheet } from "@/components/verification/verification-sheet";
+import { DeleteUserDialog, RolesDialog, SuspendDialog } from "./user-dialogs";
 
 export function rolesOf(user: Pick<AdminUser, "roles" | "role">): UserRole[] {
   return user.roles?.length ? user.roles : user.role ? [user.role] : [UserRole.USER];
@@ -40,7 +41,7 @@ export function isSeller(user: Pick<AdminUser, "roles" | "role">): boolean {
   return rolesOf(user).includes(UserRole.CREATOR);
 }
 
-type DialogKind = "roles" | "verify" | "suspend" | "delete" | "message";
+type DialogKind = "roles" | "verification" | "suspend" | "delete" | "message";
 
 export interface UserActionsApi {
   open: (kind: DialogKind, user: AdminUser) => void;
@@ -91,7 +92,13 @@ export function useUserActions(): UserActionsApi {
   const dialogs = (
     <>
       <RolesDialog user={user} open={dialog?.kind === "roles"} onOpenChange={close} />
-      <VerifyDialog user={user} open={dialog?.kind === "verify"} onOpenChange={close} />
+      {/* Verification is a review, not a switch: the same panel as the Verification
+          queue, opened in place over this screen. */}
+      <VerificationSheet
+        userId={dialog?.kind === "verification" ? (user?.id ?? null) : null}
+        open={dialog?.kind === "verification"}
+        onOpenChange={close}
+      />
       <SuspendDialog user={user} open={dialog?.kind === "suspend"} onOpenChange={close} />
       <DeleteUserDialog user={user} open={dialog?.kind === "delete"} onOpenChange={close} />
       <ComposeTeamMessageDialog
@@ -178,8 +185,8 @@ export function UserActionMenu({
           <LogIn /> Sign in as this user
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => api.open("verify", user)}>
-          <BadgeCheck /> {user.isVerified ? "Remove verification" : "Verify"}
+        <DropdownMenuItem onSelect={() => api.open("verification", user)}>
+          <BadgeCheck /> Shop verification
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => api.open("roles", user)}>
           <ShieldCheck /> Change roles

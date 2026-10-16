@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@apollo/client/react";
-import { BadgeCheck, Plus, Users } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { ADMIN_USERS, ADMIN_USER_COUNTS } from "@/graphql/operations";
 import { UserRole, type AdminUser, type AdminUserCounts } from "@/graphql/types";
 import { displayName, formatDate, formatRelative } from "@/lib/format";
@@ -25,6 +25,7 @@ import {
 import { CreateStaffDialog } from "@/components/users/user-dialogs";
 import { UserActionMenu, isSeller, rolesOf, useUserActions } from "@/components/users/user-actions";
 import { UserSheet, locationText, type UserSheetTab } from "@/components/users/user-sheet";
+import { VerifiedTick } from "@/components/verification/verification-ui";
 
 const PAGE_SIZE = 20;
 
@@ -161,9 +162,7 @@ function UsersScreen() {
                         <div className="min-w-0">
                           <p className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
                             <span className="truncate">{displayName(user)}</span>
-                            {user.isVerified && (
-                              <BadgeCheck className="size-3.5 shrink-0 text-primary" aria-label="Verified" />
-                            )}
+                            {user.isVerified && <VerifiedTick className="size-3.5" />}
                           </p>
                           <p className="truncate text-xs text-muted">
                             {user.email ?? (user.username ? `@${user.username}` : user.id)}

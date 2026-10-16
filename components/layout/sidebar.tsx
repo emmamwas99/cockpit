@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { usePendingReviewCount } from "@/components/posts/pending-review-sync";
+import { usePendingVerificationCount } from "@/components/verification/verification-ui";
 import { NAV_SECTIONS, isActive, type NavItem } from "./nav";
 
 export function Brand() {
@@ -19,8 +20,13 @@ export function Brand() {
 }
 
 export function useNavCounts(): Record<NonNullable<NavItem["badge"]>, number> {
-  return { pendingReview: usePendingReviewCount() };
+  return { pendingReview: usePendingReviewCount(), pendingVerification: usePendingVerificationCount() };
 }
+
+const BADGE_LABEL: Record<NonNullable<NavItem["badge"]>, string> = {
+  pendingReview: "posts waiting for review",
+  pendingVerification: "shops waiting for verification",
+};
 
 /** The menu itself — shared by the desktop sidebar and the mobile drawer. */
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
@@ -58,7 +64,7 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                   {count > 0 && (
                     <span className="ml-auto rounded-md bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-on-brand">
                       {count > 99 ? "99+" : count}
-                      <span className="sr-only"> posts waiting for review</span>
+                      <span className="sr-only"> {badge ? BADGE_LABEL[badge] : ""}</span>
                     </span>
                   )}
                 </Link>
