@@ -1087,3 +1087,148 @@ export interface AdminBoostCounts {
   expired: number;
   cancelled: number;
 }
+
+// ── Drafts ───────────────────────────────────────────────────────────────────
+
+export enum AdminDraftTab {
+  ATTENTION = "ATTENTION",
+  ACTIVE = "ACTIVE",
+  SCHEDULED = "SCHEDULED",
+  PUBLISHED = "PUBLISHED",
+  DISCARDED = "DISCARDED",
+}
+
+export enum DraftStatus {
+  ACTIVE = "ACTIVE",
+  PUBLISHED = "PUBLISHED",
+  DISCARDED = "DISCARDED",
+  EXPIRED = "EXPIRED",
+}
+
+export enum DraftStep {
+  MEDIA_UPLOAD = "MEDIA_UPLOAD",
+  EDITING = "EDITING",
+  PUBLISHING_OPTIONS = "PUBLISHING_OPTIONS",
+  READY = "READY",
+}
+
+/** Whether a draft's photo or video can still make it into the post. */
+export enum DraftMediaHealth {
+  READY = "READY",
+  PROCESSING = "PROCESSING",
+  UPLOADING = "UPLOADING",
+  /** Never reached storage: only the seller can add it again. */
+  NOT_UPLOADED = "NOT_UPLOADED",
+  /** Arrived but processing failed; Retry media may rescue it. */
+  FAILED = "FAILED",
+  MISSING = "MISSING",
+}
+
+export enum AdminDraftIssueCode {
+  MEDIA_MISSING = "MEDIA_MISSING",
+  MEDIA_UNUSABLE = "MEDIA_UNUSABLE",
+  MEDIA_PENDING = "MEDIA_PENDING",
+  TITLE = "TITLE",
+  DESCRIPTION = "DESCRIPTION",
+  TYPE = "TYPE",
+  LOCATION = "LOCATION",
+  PHONE = "PHONE",
+  PRICE = "PRICE",
+}
+
+export interface AdminDraftIssue {
+  code: AdminDraftIssueCode;
+  message: string;
+  /** The API refuses to publish until it is fixed. */
+  blocking: boolean;
+}
+
+export interface AdminDraftMedia {
+  id: string;
+  type?: "IMAGE" | "VIDEO" | "GENERATED_IMAGE" | null;
+  health: DraftMediaHealth;
+  thumbnailUrl?: string | null;
+  url?: string | null;
+  muxPlaybackId?: string | null;
+  errorMessage?: string | null;
+  problem?: string | null;
+  retryable: boolean;
+  updatedAt?: string | null;
+}
+
+export interface AdminDraftSpec {
+  key: string;
+  value: string;
+}
+
+export interface AdminDraftLocation extends ContentLocation {
+  formattedAddress?: string | null;
+}
+
+export interface AdminDraft {
+  id: string;
+  creatorId: string;
+  creator?: AdminUser | null;
+  status: DraftStatus;
+  currentStep: DraftStep;
+  creationMethod?: ContentCreationMethod | null;
+  type?: ContentType | null;
+  source: ContentSource;
+  title?: string | null;
+  caption?: string | null;
+  hashtags: string[];
+  price?: ContentPrice | null;
+  specs: AdminDraftSpec[];
+  categoryName?: string | null;
+  subcategoryName?: string | null;
+  location?: AdminDraftLocation | null;
+  /** Canonical 254XXXXXXXXX. */
+  contactPhone?: string | null;
+  isBulk: boolean;
+  isTiktokImport: boolean;
+  scheduledPublishAt?: string | null;
+  publishedContentId?: string | null;
+  lastPublishError?: string | null;
+  lastPublishErrorAt?: string | null;
+  publishFailureCount: number;
+  media: AdminDraftMedia[];
+  unusableMediaCount: number;
+  issues: AdminDraftIssue[];
+  canPublish: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginatedAdminDrafts {
+  data: AdminDraft[];
+  meta: PaginationMeta;
+}
+
+export interface AdminDraftCounts {
+  attention: number;
+  active: number;
+  scheduled: number;
+  published: number;
+  discarded: number;
+}
+
+export interface AdminDraftPublishResult {
+  content: AdminContent;
+  draft: AdminDraft;
+  approved: boolean;
+  approvalError?: string | null;
+  removedMediaCount: number;
+}
+
+export interface AdminDraftMediaRetryResult {
+  draft: AdminDraft;
+  requeued: number;
+  unrecoverable: number;
+}
+
+export interface AdminDraftDetailsInput {
+  title?: string | null;
+  caption?: string | null;
+  priceAmount?: number | null;
+  negotiable?: boolean | null;
+}

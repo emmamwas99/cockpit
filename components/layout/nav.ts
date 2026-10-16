@@ -2,6 +2,7 @@ import {
   Activity,
   ChartLine,
   Clapperboard,
+  FilePen,
   FolderTree,
   Gift,
   LayoutDashboard,
@@ -40,6 +41,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Marketplace",
     items: [
       { href: "/posts", label: "Posts", icon: Clapperboard, badge: "pendingReview" },
+      { href: "/drafts", label: "Drafts", icon: FilePen },
       { href: "/boosts", label: "Boosts", icon: Rocket },
       { href: "/categories", label: "Categories", icon: FolderTree },
     ],

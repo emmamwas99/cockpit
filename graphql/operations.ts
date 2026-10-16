@@ -20,6 +20,12 @@ import type {
   AdminLocationAnalytics,
   AdminSystemOverview,
   AdminContentMediaItemInput,
+  AdminDraft,
+  AdminDraftCounts,
+  AdminDraftDetailsInput,
+  AdminDraftMediaRetryResult,
+  AdminDraftPublishResult,
+  AdminDraftTab,
   AdminUser,
   Boost,
   BoostListItem,
@@ -1960,4 +1966,200 @@ export const ADMIN_BOOST_COUNTS: TypedDocumentNode<
       cancelled
     }
   }
+`;
+
+// ── Drafts ───────────────────────────────────────────────────────────────────
+
+/** Exported so the draft panel can follow a draft through the cache. */
+export const ADMIN_DRAFT_FIELDS = gql`
+  fragment AdminDraftFields on AdminDraft {
+    id
+    creatorId
+    status
+    currentStep
+    creationMethod
+    type
+    source
+    title
+    caption
+    hashtags
+    price {
+      amount
+      currency
+      negotiable
+    }
+    specs {
+      key
+      value
+    }
+    categoryName
+    subcategoryName
+    location {
+      placeName
+      formattedAddress
+      county
+      subregion
+    }
+    contactPhone
+    isBulk
+    isTiktokImport
+    scheduledPublishAt
+    publishedContentId
+    lastPublishError
+    lastPublishErrorAt
+    publishFailureCount
+    media {
+      id
+      type
+      health
+      thumbnailUrl
+      url
+      muxPlaybackId
+      errorMessage
+      problem
+      retryable
+      updatedAt
+    }
+    unusableMediaCount
+    issues {
+      code
+      message
+      blocking
+    }
+    canPublish
+    creator {
+      id
+      email
+      username
+      profile {
+        firstName
+        lastName
+        avatar
+      }
+    }
+    createdAt
+    updatedAt
+  }
+`;
+
+export const ADMIN_DRAFTS: TypedDocumentNode<
+  { adminDrafts: { data: AdminDraft[]; meta: PaginationMeta } },
+  {
+    tab: AdminDraftTab;
+    page?: number;
+    limit?: number;
+    search?: string | null;
+    creatorId?: string | null;
+  }
+> = gql`
+  query AdminDrafts(
+    $tab: AdminDraftTab!
+    $page: Int
+    $limit: Int
+    $search: String
+    $creatorId: String
+  ) {
+    adminDrafts(tab: $tab, page: $page, limit: $limit, search: $search, creatorId: $creatorId) {
+      data {
+        ...AdminDraftFields
+      }
+      meta {
+        page
+        limit
+        total
+        totalPages
+        hasNextPage
+        hasPrevPage
+      }
+    }
+  }
+  ${ADMIN_DRAFT_FIELDS}
+`;
+
+export const ADMIN_DRAFT_COUNTS: TypedDocumentNode<
+  { adminDraftCounts: AdminDraftCounts },
+  { search?: string | null; creatorId?: string | null }
+> = gql`
+  query AdminDraftCounts($search: String, $creatorId: String) {
+    adminDraftCounts(search: $search, creatorId: $creatorId) {
+      attention
+      active
+      scheduled
+      published
+      discarded
+    }
+  }
+`;
+
+export const ADMIN_PUBLISH_DRAFT: TypedDocumentNode<
+  { adminPublishDraft: AdminDraftPublishResult },
+  { id: string; removeUnusableMedia?: boolean; approve?: boolean }
+> = gql`
+  mutation AdminPublishDraft($id: String!, $removeUnusableMedia: Boolean, $approve: Boolean) {
+    adminPublishDraft(id: $id, removeUnusableMedia: $removeUnusableMedia, approve: $approve) {
+      approved
+      approvalError
+      removedMediaCount
+      content {
+        ...AdminContentFields
+      }
+      draft {
+        ...AdminDraftFields
+      }
+    }
+  }
+  ${ADMIN_CONTENT_FIELDS}
+  ${ADMIN_DRAFT_FIELDS}
+`;
+
+export const ADMIN_REMOVE_DRAFT_UNUSABLE_MEDIA: TypedDocumentNode<
+  { adminRemoveDraftUnusableMedia: AdminDraft },
+  { id: string }
+> = gql`
+  mutation AdminRemoveDraftUnusableMedia($id: String!) {
+    adminRemoveDraftUnusableMedia(id: $id) {
+      ...AdminDraftFields
+    }
+  }
+  ${ADMIN_DRAFT_FIELDS}
+`;
+
+export const ADMIN_RETRY_DRAFT_MEDIA: TypedDocumentNode<
+  { adminRetryDraftMedia: AdminDraftMediaRetryResult },
+  { id: string }
+> = gql`
+  mutation AdminRetryDraftMedia($id: String!) {
+    adminRetryDraftMedia(id: $id) {
+      requeued
+      unrecoverable
+      draft {
+        ...AdminDraftFields
+      }
+    }
+  }
+  ${ADMIN_DRAFT_FIELDS}
+`;
+
+export const ADMIN_UPDATE_DRAFT_DETAILS: TypedDocumentNode<
+  { adminUpdateDraftDetails: AdminDraft },
+  { id: string; input: AdminDraftDetailsInput }
+> = gql`
+  mutation AdminUpdateDraftDetails($id: String!, $input: AdminDraftDetailsInput!) {
+    adminUpdateDraftDetails(id: $id, input: $input) {
+      ...AdminDraftFields
+    }
+  }
+  ${ADMIN_DRAFT_FIELDS}
+`;
+
+export const ADMIN_DISCARD_DRAFT: TypedDocumentNode<
+  { adminDiscardDraft: AdminDraft },
+  { id: string }
+> = gql`
+  mutation AdminDiscardDraft($id: String!) {
+    adminDiscardDraft(id: $id) {
+      ...AdminDraftFields
+    }
+  }
+  ${ADMIN_DRAFT_FIELDS}
 `;
