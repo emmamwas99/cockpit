@@ -212,11 +212,6 @@ export function PostDetail({ post: initial }: { post: AdminContent }) {
             .filter(Boolean)
             .join(" · ")}
         />
-        {referredBy && (
-          <p className="mt-2 text-xs text-muted">
-            Referred {referrerLabel(referredBy)} · code {referredBy.code}
-          </p>
-        )}
       </section>
 
       {(post.caption || post.hashtags.length > 0) && (
@@ -245,10 +240,44 @@ export function PostDetail({ post: initial }: { post: AdminContent }) {
           {post.creationMethod === ContentCreationMethod.AGENT
             ? "Shopi Agent"
             : post.creationMethod === ContentCreationMethod.MANUAL
-              ? "Seller"
+              ? "Seller (manual)"
               : "Not recorded"}
         </Detail>
-        {isTiktokImport(post) && <Detail label="Source">Imported from TikTok</Detail>}
+        <Detail label="Upload method">
+          {post.isBulk ? "Bulk upload" : "Individual post"}
+        </Detail>
+        <Detail label="TikTok import">
+          {isTiktokImport(post) === true
+            ? post.tiktokEmbed?.authorUsername
+              ? `Yes · @${post.tiktokEmbed.authorUsername}`
+              : "Yes"
+            : isTiktokImport(post) === false
+              ? "No"
+              : "Not recorded"}
+        </Detail>
+        {post.source === ContentSource.TIKTOK_EMBED && post.tiktokEmbed && (
+          <Detail label="TikTok source">
+            <a
+              href={post.tiktokEmbed.shareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              TikTok embed · @{post.tiktokEmbed.authorUsername || "unknown"}
+            </a>
+          </Detail>
+        )}
+        <Detail label="Referral">
+          {!post.creator ? (
+            "Not available"
+          ) : referredBy ? (
+            <span>
+              Yes · {referrerLabel(referredBy)} · {referredBy.source === "LINK" ? "invite link" : "code"} {referredBy.code}
+            </span>
+          ) : (
+            "No"
+          )}
+        </Detail>
         <Detail label="Approved">
           {post.approval.isApproved && post.approval.approvedAt ? formatDate(post.approval.approvedAt) : "No"}
         </Detail>

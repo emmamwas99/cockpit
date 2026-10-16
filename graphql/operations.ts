@@ -148,6 +148,7 @@ export const ADMIN_CONTENT_FIELDS = gql`
     type
     source
     isTiktokImport
+    isBulk
     creationMethod
     status
     isLive

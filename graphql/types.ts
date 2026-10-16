@@ -240,6 +240,8 @@ export interface AdminContent {
    * components/posts/post-badges.tsx.
    */
   isTiktokImport?: boolean | null;
+  /** Whether the listing was published from the spreadsheet bulk-upload flow. */
+  isBulk?: boolean | null;
   /** Absent on posts published before the field existed — show "not recorded". */
   creationMethod?: ContentCreationMethod | null;
   status: ContentStatus;
