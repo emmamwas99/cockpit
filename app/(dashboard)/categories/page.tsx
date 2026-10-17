@@ -114,6 +114,14 @@ export default function CategoriesPage() {
   const [deleteCategory, { loading: deleting }] = useMutation(DELETE_CATEGORY);
 
   const categories = useMemo(() => orderAsTree(data?.adminCategories ?? []), [data]);
+  const rootCategories = categories.filter((category) => category.depth === 0);
+
+  function scrollToCategory(id: string) {
+    document.getElementById(`category-row-${id}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
 
   useEffect(() => {
     if (!openActionCategoryId) return;
@@ -248,6 +256,29 @@ export default function CategoriesPage() {
         }
       />
 
+      {rootCategories.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {rootCategories.map((category) => {
+            const count = category.contentCount ?? 0;
+            return (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => scrollToCategory(category.id)}
+                aria-label={`Scroll to ${category.name}, ${count} ${count === 1 ? "item" : "items"}`}
+                className="rounded-xl border border-border bg-elevated p-3 text-left transition-colors hover:border-primary/50 hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <span className="block truncate text-xs font-medium text-muted">{category.name}</span>
+                <span className="mt-2 block text-2xl font-semibold tabular-nums text-foreground">
+                  {count.toLocaleString()}
+                </span>
+                <span className="text-xs text-muted">{count === 1 ? "item" : "items"}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {loading && categories.length === 0 ? (
@@ -266,14 +297,18 @@ export default function CategoriesPage() {
                 <TableRow>
                   <TableHead>Category</TableHead>
                   <TableHead>Slug</TableHead>
-                  <TableHead>Posts</TableHead>
+                  <TableHead>Items</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {categories.map((cat) => (
-                  <TableRow key={cat.id}>
+                  <TableRow
+                    key={cat.id}
+                    id={cat.depth === 0 ? `category-row-${cat.id}` : undefined}
+                    className={cat.depth === 0 ? "scroll-mt-20" : undefined}
+                  >
                     <TableCell>
                       <div
                         className="flex items-center gap-2"

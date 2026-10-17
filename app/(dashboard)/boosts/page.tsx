@@ -105,7 +105,7 @@ export default function BoostsPage() {
         </div>
       )}
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-x-clip">
         <ListToolbar
           tabs={
             <CountTabs
@@ -220,7 +220,7 @@ export default function BoostsPage() {
         )}
 
         {meta && meta.totalPages > 1 && (
-          <div className="border-t border-border px-4 pb-3">
+          <div className="sticky bottom-0 z-20 border-t border-border bg-elevated/95 px-4 pb-1 shadow-[0_-8px_16px_-12px_rgba(0,0,0,0.35)] backdrop-blur-sm">
             <Pagination meta={meta} onPageChange={setPage} />
           </div>
         )}

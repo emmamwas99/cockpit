@@ -17,7 +17,7 @@ export function Pagination({
   const to = Math.min(meta.page * meta.limit, meta.total);
 
   return (
-    <div className="flex items-center justify-between gap-4 pt-4">
+    <div className="flex items-center justify-between gap-4 py-3">
       <p className="text-sm text-muted">
         Showing {from}–{to} of {meta.total.toLocaleString()}
       </p>
