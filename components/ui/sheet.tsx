@@ -23,7 +23,7 @@ function SheetContent({
   const ref = React.useRef<HTMLDivElement>(null);
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 data-[state=closed]:pointer-events-none data-[state=open]:animate-in data-[state=open]:fade-in-0" />
       <DialogPrimitive.Content
         ref={ref}
         tabIndex={-1}
@@ -38,10 +38,10 @@ function SheetContent({
         className={cn(
           "focus:outline-none",
           "fixed inset-y-0 z-50 flex w-full flex-col bg-elevated shadow-lg sm:max-w-xl",
-          "data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=closed]:animate-out data-[state=closed]:duration-150",
+          "data-[state=closed]:pointer-events-none data-[state=open]:animate-in data-[state=open]:duration-200",
           side === "right"
-            ? "right-0 border-l border-border data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right"
-            : "left-0 border-r border-border data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left",
+            ? "right-0 border-l border-border data-[state=open]:slide-in-from-right"
+            : "left-0 border-r border-border data-[state=open]:slide-in-from-left",
           className,
         )}
         {...props}
