@@ -94,7 +94,7 @@ export interface PostAction {
  * those actions open. The row menu, the quick approve/reject buttons and the
  * detail panel all render from this, so they can never disagree.
  */
-export function usePostActions(post: AdminContent) {
+export function usePostActions(post: AdminContent, onApproved?: () => void) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
@@ -119,6 +119,7 @@ export function usePostActions(post: AdminContent) {
           ? "Approved — it goes live when its media finishes processing"
           : "Approved and live",
       );
+      onApproved?.();
     } catch (err) {
       toast.error(errMessage(err));
     }
@@ -443,8 +444,16 @@ export function PostRowActions({ post }: { post: AdminContent }) {
  * The action bar of the post detail panel: the state's main moves as buttons
  * (approve/reject, hide/make live, boost), the rest under "More".
  */
-export function PostActionBar({ post, className }: { post: AdminContent; className?: string }) {
-  const { actions, dialogs, busy } = usePostActions(post);
+export function PostActionBar({
+  post,
+  className,
+  onApproved,
+}: {
+  post: AdminContent;
+  className?: string;
+  onApproved?: () => void;
+}) {
+  const { actions, dialogs, busy } = usePostActions(post, onApproved);
   // "Recover media" only shows while media is unfinished, and then it's the
   // thing to do first, so it sits with the main moves.
   const primaryKeys: PostAction["key"][] = ["approve", "reject", "hide", "live", "boost", "recover"];

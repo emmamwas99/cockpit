@@ -170,7 +170,7 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 }
 
 /** Everything about one post and every action on it — the body of the post panel. */
-export function PostDetail({ post: initial }: { post: AdminContent }) {
+export function PostDetail({ post: initial, onApproved }: { post: AdminContent; onApproved?: () => void }) {
   const post = useLivePost(initial);
   const referredBy = post.creator?.referredBy;
   const place = [post.location?.placeName, post.location?.subregion, post.location?.county]
@@ -189,7 +189,7 @@ export function PostDetail({ post: initial }: { post: AdminContent }) {
             <p className="text-lg font-semibold tabular-nums text-foreground">{formatPrice(post.price)}</p>
             {post.price?.negotiable && <p className="text-xs text-muted">Negotiable</p>}
           </div>
-          <PostActionBar post={post} />
+          <PostActionBar post={post} onApproved={onApproved} />
           {post.approval.rejectionReason && post.status === ContentStatus.REJECTED && (
             <p className="rounded-lg bg-error-soft px-3 py-2 text-[13px] text-error">
               Rejected: {post.approval.rejectionReason}
@@ -308,7 +308,7 @@ export function PostSheet({
               </SheetDescription>
             </SheetHeader>
             <SheetBody>
-              <PostDetail post={post} />
+              <PostDetail post={post} onApproved={() => onOpenChange(false)} />
             </SheetBody>
           </>
         )}
