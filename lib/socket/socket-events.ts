@@ -9,6 +9,7 @@ export const WS_EVENTS = {
   TEAM_MESSAGE_CREATED: "team:message:created",
   TEAM_THREAD_UPDATED: "team:thread:updated",
   ADMIN_PENDING_REVIEW_UPDATED: "admin:pending-review:updated",
+  ADMIN_VERIFICATION_QUEUE_UPDATED: "admin:verification-queue:updated",
 } as const;
 
 /** The Shopi team inbox changed. Carries no message content — refetch what's shown. */

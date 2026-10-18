@@ -1,10 +1,14 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useState } from "react";
-import { useQuery } from "@apollo/client/react";
+import { useEffect, useState } from "react";
+import { useApolloClient, useQuery } from "@apollo/client/react";
 import { FileText, ImageOff, ZoomIn, ZoomOut } from "lucide-react";
-import { ADMIN_PENDING_SHOP_VERIFICATION_COUNT } from "@/graphql/operations";
+import {
+  ADMIN_PENDING_SHOP_VERIFICATION_COUNT,
+  ADMIN_SHOP_VERIFICATION_COUNTS,
+  ADMIN_SHOP_VERIFICATIONS,
+} from "@/graphql/operations";
 import {
   ShopVerificationIssue,
   ShopVerificationStatus,
@@ -14,6 +18,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { useSocket } from "@/hooks/useSocket";
+import { WS_EVENTS } from "@/lib/socket/socket-events";
 
 /** The same blue as the public tick, so admins read it the way buyers do. */
 export const VERIFIED_BLUE = "#1D9BF0";
@@ -215,10 +221,41 @@ export function usePendingVerificationCount(): number {
  * layout, polling while the tab is visible. Decisions refetch it by name.
  */
 export function VerificationSync() {
+  const client = useApolloClient();
+  const { on, onReconnect } = useSocket();
+
   useQuery(ADMIN_PENDING_SHOP_VERIFICATION_COUNT, {
     pollInterval: POLL_MS,
     skipPollAttempt: () => document.hidden,
   });
+
+  useEffect(
+    () =>
+      on(WS_EVENTS.ADMIN_VERIFICATION_QUEUE_UPDATED, () => {
+        void client.refetchQueries({
+          include: [
+            ADMIN_PENDING_SHOP_VERIFICATION_COUNT,
+            ADMIN_SHOP_VERIFICATION_COUNTS,
+            ADMIN_SHOP_VERIFICATIONS,
+          ],
+        });
+      }),
+    [on, client],
+  );
+
+  useEffect(
+    () =>
+      onReconnect(() => {
+        void client.refetchQueries({
+          include: [
+            ADMIN_PENDING_SHOP_VERIFICATION_COUNT,
+            ADMIN_SHOP_VERIFICATION_COUNTS,
+            ADMIN_SHOP_VERIFICATIONS,
+          ],
+        });
+      }),
+    [onReconnect, client],
+  );
   return null;
 }
 
