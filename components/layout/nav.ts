@@ -21,7 +21,7 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   /** Live counts of work waiting: posts to review, shops to verify. */
-  badge?: "pendingReview" | "pendingVerification";
+  badge?: "pendingReview" | "pendingVerification" | "teamUnread";
 }
 
 export interface NavSection {
@@ -67,7 +67,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Platform",
     items: [
-      { href: "/team", label: "Shopi team", icon: Megaphone },
+      { href: "/team", label: "Shopi team", icon: Megaphone, badge: "teamUnread" },
       { href: "/system", label: "System", icon: Activity },
     ],
   },

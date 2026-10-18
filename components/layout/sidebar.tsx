@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { usePendingReviewCount } from "@/components/posts/pending-review-sync";
 import { usePendingVerificationCount } from "@/components/verification/verification-ui";
+import { useTeamUnreadThreads } from "@/components/team/team-inbox-sync";
 import { NAV_SECTIONS, isActive, type NavItem } from "./nav";
 
 export function Brand() {
@@ -20,12 +21,17 @@ export function Brand() {
 }
 
 export function useNavCounts(): Record<NonNullable<NavItem["badge"]>, number> {
-  return { pendingReview: usePendingReviewCount(), pendingVerification: usePendingVerificationCount() };
+  return {
+    pendingReview: usePendingReviewCount(),
+    pendingVerification: usePendingVerificationCount(),
+    teamUnread: useTeamUnreadThreads(),
+  };
 }
 
 const BADGE_LABEL: Record<NonNullable<NavItem["badge"]>, string> = {
   pendingReview: "posts waiting for review",
   pendingVerification: "shops waiting for verification",
+  teamUnread: "Shopi team threads with unread messages",
 };
 
 /** The menu itself — shared by the desktop sidebar and the mobile drawer. */

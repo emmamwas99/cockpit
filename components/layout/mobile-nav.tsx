@@ -9,7 +9,7 @@ import { Brand, NavLinks, useNavCounts } from "./sidebar";
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const counts = useNavCounts();
-  const waiting = counts.pendingReview + counts.pendingVerification;
+  const waiting = counts.pendingReview + counts.pendingVerification + counts.teamUnread;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

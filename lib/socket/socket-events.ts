@@ -7,6 +7,7 @@
 
 export const WS_EVENTS = {
   TEAM_THREAD_UPDATED: "team:thread:updated",
+  ADMIN_PENDING_REVIEW_UPDATED: "admin:pending-review:updated",
 } as const;
 
 /** The Shopi team inbox changed. Carries no message content — refetch what's shown. */
