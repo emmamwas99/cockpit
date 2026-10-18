@@ -1316,6 +1316,14 @@ export enum ShopVerificationEventType {
 }
 
 /** A permit or shop photo. `url` is a private link that expires — refetch for a fresh one. */
+export interface ShopVerificationGuidanceFile {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  url: string;
+  urlExpiresAt: string;
+}
+
 export interface ShopVerificationDocument {
   kind: "PERMIT" | "SHOP_PHOTO";
   fileName?: string | null;
@@ -1408,6 +1416,7 @@ export interface AdminVerificationEvent {
   issues: ShopVerificationIssueDetail[];
   note?: string | null;
   internalNote?: string | null;
+  guidanceFiles: ShopVerificationGuidanceFile[];
 }
 
 export interface AdminShopVerification {
@@ -1452,6 +1461,7 @@ export interface AdminRejectShopVerificationInput {
   issues: ShopVerificationIssue[];
   note?: string | null;
   internalNote?: string | null;
+  guidanceFileKeys?: string[];
 }
 
 export interface AdminRevokeShopVerificationInput {

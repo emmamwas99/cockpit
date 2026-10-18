@@ -29,6 +29,7 @@ import {
 import { ADMIN_SHOP_VERIFICATION } from "@/graphql/operations";
 import {
   ShopVerificationEventType,
+  ShopVerificationIssue,
   ShopVerificationStatus,
   type AdminContent,
   type AdminShopVerification,
@@ -344,6 +345,17 @@ function HistoryItem({ event }: { event: AdminVerificationEvent }) {
           </div>
         )}
         {event.note && <p className="mt-1.5 text-[13px] text-foreground">&ldquo;{event.note}&rdquo;</p>}
+        {event.guidanceFiles.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {event.guidanceFiles.map((file) => (
+              <li key={`${file.fileName}-${file.url}`}>
+                <a href={file.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                  <FileText className="size-3.5" /> {file.fileName}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
         {event.internalNote && (
           <p className="mt-1 flex items-start gap-1.5 text-xs text-muted">
             <Lock className="mt-0.5 size-3 shrink-0" /> {event.internalNote}
@@ -655,6 +667,7 @@ export function VerificationSheet({
   const subject: VerificationSubject | null = userId ? { userId, businessName, sellerName } : null;
   const historyCount = detail?.events?.length ?? 0;
   const documentsComplete = Boolean(application && application.missing.length === 0);
+  const latestRejection = detail?.events?.find((event) => event.type === ShopVerificationEventType.REJECTED);
 
   function handleOpenChange(next: boolean) {
     onOpenChange(next);
@@ -825,15 +838,24 @@ export function VerificationSheet({
                   </Button>
                 </SheetFooter>
               )}
-              {(status === ShopVerificationStatus.REJECTED || status === ShopVerificationStatus.REVOKED) && documentsComplete && (
+              {status === ShopVerificationStatus.REJECTED && (
                 <SheetFooter className="justify-end">
-                  <p className="mr-auto text-xs text-muted">
-                    {status === ShopVerificationStatus.REJECTED
-                      ? "Waiting for the seller to resubmit."
-                      : "The seller can apply again."}
-                  </p>
+                  <p className="mr-auto text-xs text-muted">Update the request sent to the seller, or verify this shop.</p>
+                  <Button variant="outline" onClick={() => setDialog("changes")}>
+                    <XCircle /> Edit request
+                  </Button>
+                  {documentsComplete && (
+                    <Button variant="success" onClick={() => setDialog("approve")}>
+                      <BadgeCheck /> Verify anyway
+                    </Button>
+                  )}
+                </SheetFooter>
+              )}
+              {status === ShopVerificationStatus.REVOKED && documentsComplete && (
+                <SheetFooter className="justify-end">
+                  <p className="mr-auto text-xs text-muted">The seller can apply again.</p>
                   <Button variant="outline" onClick={() => setDialog("approve")}>
-                    <BadgeCheck /> {status === ShopVerificationStatus.REJECTED ? "Verify anyway" : "Restore verification"}
+                    <BadgeCheck /> Restore verification
                   </Button>
                 </SheetFooter>
               )}
@@ -849,7 +871,18 @@ export function VerificationSheet({
         onOpenChange={(next) => !next && setLightbox(null)}
       />
       <ApproveVerificationDialog subject={subject} open={dialog === "approve"} onOpenChange={(next) => !next && setDialog(null)} />
-      <RequestChangesDialog subject={subject} open={dialog === "changes"} onOpenChange={(next) => !next && setDialog(null)} />
+      {dialog === "changes" && subject && (
+        <RequestChangesDialog
+          subject={subject}
+          open
+          onOpenChange={(next) => !next && setDialog(null)}
+          isEditing={status === ShopVerificationStatus.REJECTED}
+          initialIssues={(application?.issues ?? []).map((item) => item.issue as ShopVerificationIssue)}
+          initialNote={application?.decisionNote ?? ""}
+          initialInternalNote={detail?.internalNote ?? ""}
+          existingFiles={latestRejection?.guidanceFiles ?? []}
+        />
+      )}
       <RevokeVerificationDialog subject={subject} open={dialog === "revoke"} onOpenChange={(next) => !next && setDialog(null)} />
       <GrantVerificationDialog subject={subject} open={dialog === "grant"} onOpenChange={(next) => !next && setDialog(null)} />
       <ComposeTeamMessageDialog

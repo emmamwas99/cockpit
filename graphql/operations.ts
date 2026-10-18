@@ -2354,6 +2354,13 @@ const ADMIN_SHOP_VERIFICATION_DETAIL_FIELDS = gql`
         issue
         title
       }
+      guidanceFiles {
+        fileName
+        contentType
+        sizeBytes
+        url
+        urlExpiresAt
+      }
     }
   }
   ${ADMIN_SHOP_VERIFICATION_ROW_FIELDS}

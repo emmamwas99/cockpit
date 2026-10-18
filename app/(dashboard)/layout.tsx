@@ -6,6 +6,7 @@ import { PendingReviewSync } from "@/components/posts/pending-review-sync";
 import { DraftAttentionSync } from "@/components/drafts/draft-attention-sync";
 import { VerificationSync } from "@/components/verification/verification-ui";
 import { BackToTop } from "@/components/layout/back-to-top";
+import { AppIconBadgeSync } from "@/components/pwa/app-icon-badge-sync";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -14,6 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <PendingReviewSync />
       <DraftAttentionSync />
       <VerificationSync />
+      <AppIconBadgeSync />
       <BackToTop />
       <div className="flex min-h-screen bg-canvas">
         <Sidebar />
