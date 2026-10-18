@@ -209,6 +209,9 @@ export interface EngagementStats {
   comments: number;
   shares: number;
   saves: number;
+  messagesStarted: number;
+  profileVisits: number;
+  productClicks: number;
 }
 
 export interface ApprovalState {

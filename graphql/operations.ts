@@ -195,6 +195,9 @@ export const ADMIN_CONTENT_FIELDS = gql`
       comments
       shares
       saves
+      messagesStarted
+      profileVisits
+      productClicks
     }
     approval {
       isApproved

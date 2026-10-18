@@ -4,7 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApolloClient, useQuery } from "@apollo/client/react";
 import { toast } from "sonner";
-import { Check, Clapperboard, RefreshCw, X } from "lucide-react";
+import { ArrowDownUp, Check, ChevronDown, Clapperboard, RefreshCw, X } from "lucide-react";
 import {
   ADMIN_CONTENT,
   ADMIN_CONTENT_COUNTS,
@@ -42,8 +42,15 @@ import { PostRowActions, POST_REFETCH } from "@/components/posts/post-actions";
 import { PostSheet, PostStatusLine } from "@/components/posts/post-detail";
 import { POST_TABS, postTab, type PostTabKey } from "@/components/posts/post-tabs";
 import { MediaRecoveryButton } from "@/components/posts/media-recovery-button";
-import { Select } from "@/components/ui/select";
 import { AdminPostSort } from "@/graphql/types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const PAGE_SIZE = 20;
 
@@ -163,20 +170,36 @@ function PostsScreen() {
             }}
             placeholder="Title, listing no. or seller"
           />
-          <Select
-            aria-label="Sort posts"
-            value={sort}
-            onChange={(event) => {
-              setSort(event.target.value as AdminPostSort);
-              setPage(1);
-              setSelected(new Set());
-            }}
-            className="w-full sm:w-56"
-          >
-            <option value={AdminPostSort.RECENT}>Newest first</option>
-            <option value={AdminPostSort.VIEWS}>Most views</option>
-            <option value={AdminPostSort.ENGAGEMENT}>Most engagement</option>
-          </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-full justify-between sm:w-56" aria-label="Sort posts">
+                <span className="flex items-center gap-2">
+                  <ArrowDownUp className="size-4 text-muted" />
+                  {sort === AdminPostSort.VIEWS
+                    ? "Most views"
+                    : sort === AdminPostSort.ENGAGEMENT
+                      ? "Most engagement"
+                      : "Newest first"}
+                </span>
+                <ChevronDown className="size-4 text-muted" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel>Sort posts</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={sort}
+                onValueChange={(value) => {
+                  setSort(value as AdminPostSort);
+                  setPage(1);
+                  setSelected(new Set());
+                }}
+              >
+                <DropdownMenuRadioItem value={AdminPostSort.RECENT}>Newest first</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value={AdminPostSort.VIEWS}>Most views</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value={AdminPostSort.ENGAGEMENT}>Most engagement</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {sort === AdminPostSort.ENGAGEMENT && (
             <span className="text-xs text-muted">
               Saves, messages, product and profile clicks, comments, shares and likes
@@ -225,6 +248,7 @@ function PostsScreen() {
                 <TableHead className="hidden lg:table-cell">Seller</TableHead>
                 <TableHead className="hidden sm:table-cell">Status</TableHead>
                 <TableHead className="hidden text-right md:table-cell">Views</TableHead>
+                <TableHead className="hidden text-right lg:table-cell">Engagement</TableHead>
                 <TableHead className="hidden md:table-cell">Posted</TableHead>
                 <TableHead className="w-24" />
               </TableRow>
@@ -270,6 +294,20 @@ function PostsScreen() {
                   </TableCell>
                   <TableCell className="hidden text-right tabular-nums text-muted md:table-cell">
                     {formatNumber(post.stats.views)}
+                  </TableCell>
+                  <TableCell
+                    className="hidden text-right tabular-nums text-muted lg:table-cell"
+                    title="Saves, messages started, product and profile clicks, comments, shares and likes"
+                  >
+                    {formatNumber(
+                      post.stats.saves +
+                        post.stats.messagesStarted +
+                        post.stats.productClicks +
+                        post.stats.profileVisits +
+                        post.stats.comments +
+                        post.stats.shares +
+                        post.stats.likes,
+                    )}
                   </TableCell>
                   <TableCell className="hidden whitespace-nowrap text-muted md:table-cell" title={formatDate(post.createdAt)}>
                     {formatRelative(post.createdAt)}
