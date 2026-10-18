@@ -19,7 +19,11 @@ import {
 } from "@/graphql/types";
 import { displayName, formatDate, formatNumber, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { WS_EVENTS, type TeamThreadUpdatedPayload } from "@/lib/socket/socket-events";
+import {
+  WS_EVENTS,
+  type TeamMessageCreatedPayload,
+  type TeamThreadUpdatedPayload,
+} from "@/lib/socket/socket-events";
 import { useSocket } from "@/hooks/useSocket";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +80,17 @@ function ThreadPanel({ thread, onChanged }: { thread: TeamThread; onChanged: () 
   useEffect(
     () =>
       on<TeamThreadUpdatedPayload>(WS_EVENTS.TEAM_THREAD_UPDATED, ({ reason, userId }) => {
-        if (userId === thread.userId && reason !== "read") void refetch();
+        if (userId === thread.userId && reason !== "read" && reason !== "member_reply") void refetch();
+      }),
+    [on, refetch, thread.userId],
+  );
+
+  // Refresh the open conversation directly from the message event. This does
+  // not wait for the inbox-wide unread count query used by the badge event.
+  useEffect(
+    () =>
+      on<TeamMessageCreatedPayload>(WS_EVENTS.TEAM_MESSAGE_CREATED, ({ userId }) => {
+        if (userId === thread.userId) void refetch();
       }),
     [on, refetch, thread.userId],
   );
@@ -193,7 +207,15 @@ function SentTable({ onViewReplies }: { onViewReplies: (broadcast: TeamBroadcast
   useEffect(
     () =>
       on<TeamThreadUpdatedPayload>(WS_EVENTS.TEAM_THREAD_UPDATED, ({ reason }) => {
-        if (reason === "member_reply" || reason === "broadcast") void refetch();
+        if (reason === "broadcast") void refetch();
+      }),
+    [on, refetch],
+  );
+
+  useEffect(
+    () =>
+      on<TeamMessageCreatedPayload>(WS_EVENTS.TEAM_MESSAGE_CREATED, () => {
+        void refetch();
       }),
     [on, refetch],
   );
@@ -307,7 +329,15 @@ export default function TeamMessagesPage() {
   useEffect(
     () =>
       on<TeamThreadUpdatedPayload>(WS_EVENTS.TEAM_THREAD_UPDATED, ({ reason }) => {
-        if (view !== "sent" && reason !== "member_read") void refetch();
+        if (view !== "sent" && reason !== "member_read" && reason !== "member_reply") void refetch();
+      }),
+    [on, refetch, view],
+  );
+
+  useEffect(
+    () =>
+      on<TeamMessageCreatedPayload>(WS_EVENTS.TEAM_MESSAGE_CREATED, () => {
+        if (view !== "sent") void refetch();
       }),
     [on, refetch, view],
   );
