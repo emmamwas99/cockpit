@@ -12,6 +12,7 @@ import type {
   AdminConversationQueue,
   AdminCreatorDetail,
   AdminCreatorSort,
+  AdminPostSort,
   AdminAnalytics,
   AdminContent,
   AdminDashboardStats,
@@ -769,6 +770,7 @@ export const ADMIN_CONTENT: TypedDocumentNode<
     search?: string | null;
     creatorId?: string | null;
     reported?: boolean | null;
+    sort?: AdminPostSort;
   }
 > = gql`
   query AdminContent(
@@ -778,6 +780,7 @@ export const ADMIN_CONTENT: TypedDocumentNode<
     $search: String
     $creatorId: String
     $reported: Boolean
+    $sort: AdminPostSort
   ) {
     adminContent(
       page: $page
@@ -786,6 +789,7 @@ export const ADMIN_CONTENT: TypedDocumentNode<
       search: $search
       creatorId: $creatorId
       reported: $reported
+      sort: $sort
     ) {
       data {
         ...AdminContentFields

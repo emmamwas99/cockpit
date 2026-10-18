@@ -45,6 +45,12 @@ export enum AdminCreatorSort {
   LAST_POSTED = "LAST_POSTED",
 }
 
+export enum AdminPostSort {
+  RECENT = "RECENT",
+  VIEWS = "VIEWS",
+  ENGAGEMENT = "ENGAGEMENT",
+}
+
 export enum MediaProcessingStatus {
   PENDING = "PENDING",
   PROCESSING = "PROCESSING",

@@ -42,6 +42,8 @@ import { PostRowActions, POST_REFETCH } from "@/components/posts/post-actions";
 import { PostSheet, PostStatusLine } from "@/components/posts/post-detail";
 import { POST_TABS, postTab, type PostTabKey } from "@/components/posts/post-tabs";
 import { MediaRecoveryButton } from "@/components/posts/media-recovery-button";
+import { Select } from "@/components/ui/select";
+import { AdminPostSort } from "@/graphql/types";
 
 const PAGE_SIZE = 20;
 
@@ -60,6 +62,7 @@ function PostsScreen() {
   const tabKey: PostTabKey = postTab(params.get("tab"))?.key ?? "pending";
   const tab = postTab(tabKey)!;
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<AdminPostSort>(AdminPostSort.RECENT);
   const [searchInput, setSearchInput] = useState(params.get("q") ?? "");
   const search = useDebouncedValue(searchInput.trim());
   const [opened, setOpened] = useState<AdminContent | null>(null);
@@ -80,6 +83,7 @@ function PostsScreen() {
       status: tab.status ?? null,
       reported: tab.reported ?? null,
       search: search || null,
+      sort,
     },
     fetchPolicy: "cache-and-network",
   });
@@ -159,6 +163,25 @@ function PostsScreen() {
             }}
             placeholder="Title, listing no. or seller"
           />
+          <Select
+            aria-label="Sort posts"
+            value={sort}
+            onChange={(event) => {
+              setSort(event.target.value as AdminPostSort);
+              setPage(1);
+              setSelected(new Set());
+            }}
+            className="w-full sm:w-56"
+          >
+            <option value={AdminPostSort.RECENT}>Newest first</option>
+            <option value={AdminPostSort.VIEWS}>Most views</option>
+            <option value={AdminPostSort.ENGAGEMENT}>Most engagement</option>
+          </Select>
+          {sort === AdminPostSort.ENGAGEMENT && (
+            <span className="text-xs text-muted">
+              Saves, messages, product and profile clicks, comments, shares and likes
+            </span>
+          )}
         </ListToolbar>
 
         {bulk && selectedPosts.length > 0 && (
