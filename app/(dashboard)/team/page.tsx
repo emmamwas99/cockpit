@@ -1,20 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { toast } from "sonner";
-import { Filter, MessageSquarePlus, Send, X } from "lucide-react";
+import { uploadTeamMediaAsset } from "@/lib/team/upload-team-media";
+import { ChevronLeft, Filter, MessageSquarePlus, Paperclip, Play, Send, X } from "lucide-react";
 import {
   ADMIN_MARK_TEAM_THREAD_READ,
   ADMIN_REPLY_TEAM_THREAD,
   ADMIN_TEAM_BROADCASTS,
   ADMIN_TEAM_THREADS,
   ADMIN_TEAM_THREAD_MESSAGES,
+  NOTIFY_IMAGE_UPLOADED,
+  NOTIFY_VIDEO_UPLOADED,
+  REQUEST_IMAGE_UPLOAD,
+  REQUEST_VIDEO_UPLOAD,
 } from "@/graphql/operations";
 import {
   TeamBroadcastAudience,
   TeamMessageSender,
   type TeamBroadcast,
+  type TeamMessage,
   type TeamThread,
 } from "@/graphql/types";
 import { displayName, formatDate, formatNumber, formatRelative } from "@/lib/format";
@@ -30,7 +36,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -60,10 +65,45 @@ function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Something went wrong";
 }
 
-function ThreadPanel({ thread, onChanged }: { thread: TeamThread; onChanged: () => void }) {
+function TeamImageAttachment({ asset }: { asset: NonNullable<TeamMessage["mediaAsset"]> }) {
+  const imageUrl =
+    asset.r2Variants?.find((variant) => variant.variant === "medium")?.url ||
+    asset.r2Variants?.find((variant) => Boolean(variant.url))?.url ||
+    asset.thumbnailUrl ||
+    null;
+  const [failed, setFailed] = useState(false);
+
+  if (!imageUrl || failed) {
+    const label = asset.status === "FAILED" || failed ? "Image unavailable" : "Preparing image…";
+    return <div role="status" aria-live="polite" className="flex h-full items-center justify-center px-4 text-xs text-muted">{label}</div>;
+  }
+
+  return (
+    <a href={imageUrl} target="_blank" rel="noreferrer" className="block h-full w-full">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={imageUrl}
+        alt="Message attachment"
+        onError={() => setFailed(true)}
+        className="h-full w-full object-contain"
+        loading="eager"
+        decoding="async"
+      />
+    </a>
+  );
+}
+
+function ThreadPanel({ thread, onChanged, onBack }: { thread: TeamThread; onChanged: () => void; onBack: () => void }) {
   const [reply, setReply] = useState("");
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const replyInput = useRef<HTMLTextAreaElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
   const name = displayName(thread.user);
+  const [visualViewportHeight, setVisualViewportHeight] = useState<number | null>(null);
+  const activeRef = useRef(true);
 
   const { data, loading, refetch } = useQuery(ADMIN_TEAM_THREAD_MESSAGES, {
     variables: { userId: thread.userId, limit: 100 },
@@ -71,9 +111,59 @@ function ThreadPanel({ thread, onChanged }: { thread: TeamThread; onChanged: () 
   });
   const [markRead] = useMutation(ADMIN_MARK_TEAM_THREAD_READ);
   const [sendReply, { loading: sending }] = useMutation(ADMIN_REPLY_TEAM_THREAD);
+  const [requestImageUpload] = useMutation(REQUEST_IMAGE_UPLOAD);
+  const [requestVideoUpload] = useMutation(REQUEST_VIDEO_UPLOAD);
+  const [notifyImageUploaded] = useMutation(NOTIFY_IMAGE_UPLOADED);
+  const [notifyVideoUploaded] = useMutation(NOTIFY_VIDEO_UPLOADED);
   const { on } = useSocket();
 
   const messages = useMemo(() => data?.adminTeamThreadMessages.items ?? [], [data]);
+
+  useEffect(() => {
+    activeRef.current = true;
+    return () => {
+      activeRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => () => {
+    if (filePreview) URL.revokeObjectURL(filePreview);
+  }, [filePreview]);
+
+  // Installed mobile PWAs can keep the layout viewport behind the keyboard.
+  // Use the visible viewport so the composer stays above the keyboard.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const updateHeight = () => setVisualViewportHeight(viewport.height);
+    updateHeight();
+    viewport.addEventListener("resize", updateHeight);
+    viewport.addEventListener("scroll", updateHeight);
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      viewport.removeEventListener("resize", updateHeight);
+      viewport.removeEventListener("scroll", updateHeight);
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, []);
+
+  function selectAttachment(nextFile: File | null) {
+    setFile(nextFile);
+    setFilePreview(nextFile?.type.startsWith("image/") ? URL.createObjectURL(nextFile) : null);
+  }
+
+  useLayoutEffect(() => {
+    const input = replyInput.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
+    input.style.overflowY = input.scrollHeight > 160 ? "auto" : "hidden";
+  }, [reply]);
+
+  useLayoutEffect(() => {
+    const panel = messagesRef.current;
+    if (panel) panel.scrollTop = panel.scrollHeight;
+  }, [messages.length]);
 
   // New messages either way, or the member reading ours ("Seen"). The team
   // marking the member's replies read changes nothing shown here.
@@ -102,25 +192,61 @@ function ThreadPanel({ thread, onChanged }: { thread: TeamThread; onChanged: () 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread.userId, thread.teamUnreadCount]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+  async function refreshImageUntilReady(mediaAssetId: string) {
+    for (let attempt = 0; attempt < 30 && activeRef.current; attempt += 1) {
+      try {
+        const result = await refetch();
+        const asset = result.data?.adminTeamThreadMessages.items.find(
+          (message) => message.mediaAssetId === mediaAssetId,
+        )?.mediaAsset;
+        if (asset?.status === "READY" || asset?.status === "FAILED") return;
+      } catch {
+        // Retry briefly through transient query failures while processing runs.
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+    }
+  }
 
   async function handleReply() {
-    if (!reply.trim()) return;
+    if (!reply.trim() && !file) return;
     try {
-      await sendReply({ variables: { userId: thread.userId, body: reply.trim() } });
+      let mediaAssetId: string | null = null;
+      let imageAssetId: string | null = null;
+      setUploading(Boolean(file));
+      if (file) {
+        const isVideo = file.type.startsWith("video/");
+        const session = isVideo
+          ? (await requestVideoUpload({ variables: { corsOrigin: window.location.origin } })).data?.requestVideoUpload
+          : (await requestImageUpload({ variables: { mimeType: file.type || "image/jpeg" } })).data?.requestImageUpload;
+        if (!session?.mediaAssetId) throw new Error("Could not start the upload");
+        await uploadTeamMediaAsset(file, session.mediaAssetId, isVideo);
+        if (isVideo) await notifyVideoUploaded({ variables: { mediaAssetId: session.mediaAssetId } });
+        else await notifyImageUploaded({ variables: { mediaAssetId: session.mediaAssetId } });
+        mediaAssetId = session.mediaAssetId;
+        if (!isVideo) imageAssetId = session.mediaAssetId;
+      }
+      await sendReply({ variables: { userId: thread.userId, body: reply.trim(), mediaAssetId } });
       setReply("");
+      selectAttachment(null);
       await refetch();
+      if (imageAssetId) void refreshImageUntilReady(imageAssetId);
       onChanged();
     } catch (err) {
       toast.error(errMessage(err));
+    } finally {
+      setUploading(false);
     }
   }
 
   return (
-    <Card className="flex h-[calc(100vh-11rem)] min-h-[480px] flex-col">
-      <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+    <Card
+      className="fixed inset-x-0 top-14 z-50 flex h-[calc(var(--team-admin-viewport-height,100dvh)-3.5rem)] min-h-0 flex-col rounded-none lg:static lg:h-[calc(100svh-18rem)] lg:rounded-xl"
+      style={visualViewportHeight ? { "--team-admin-viewport-height": `${visualViewportHeight}px` } as React.CSSProperties : undefined}
+    >
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-3 py-3 sm:px-5 sm:py-4">
+        <button type="button" onClick={onBack} className="flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-subtle lg:hidden" aria-label="Back to threads">
+          <ChevronLeft className="size-5" />
+        </button>
         <Avatar src={thread.user?.profile?.avatar} name={name} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">{name}</p>
@@ -135,7 +261,7 @@ function ThreadPanel({ thread, onChanged }: { thread: TeamThread; onChanged: () 
         )}
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+      <div ref={messagesRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4">
         {loading && messages.length === 0 ? (
           Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className={cn("h-16 w-2/3", i % 2 ? "ml-auto" : "")} />
@@ -147,12 +273,26 @@ function ThreadPanel({ thread, onChanged }: { thread: TeamThread; onChanged: () 
               <div key={message.id} className={cn("flex", fromTeam ? "justify-end" : "justify-start")}>
                 <div
                   className={cn(
-                    "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm",
+                    "relative w-fit min-w-24 max-w-[88%] rounded-2xl px-4 py-2.5 text-sm md:w-[75%] md:max-w-none",
                     fromTeam ? "bg-primary text-on-brand" : "bg-subtle text-foreground",
                   )}
                 >
                   {message.subject && <p className="mb-1 font-semibold">{message.subject}</p>}
-                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                  {message.body && (message.body !== "Attachment" || !message.mediaAsset) && <p className="whitespace-pre-wrap break-words">{message.body}</p>}
+                  {message.mediaAsset && (
+                    <div className="mt-2 h-[35svh] min-h-[180px] max-h-[420px] min-w-[180px] overflow-hidden rounded-xl bg-black/5">
+                      {message.mediaAsset.type === "VIDEO" ? message.mediaAsset.muxMeta?.playbackId ? (
+                        <video controls preload="metadata" className="h-full w-full object-contain" poster={message.mediaAsset.muxMeta.thumbnailUrl ?? undefined} src={`https://stream.mux.com/${message.mediaAsset.muxMeta.playbackId}/high.mp4`} />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-xs text-muted">Processing video…</div>
+                      ) : (
+                        <TeamImageAttachment
+                          key={`${message.mediaAsset.status ?? ""}:${message.mediaAsset.thumbnailUrl ?? message.mediaAsset.r2Variants?.[0]?.url ?? ""}`}
+                          asset={message.mediaAsset}
+                        />
+                      )}
+                    </div>
+                  )}
                   <p
                     className={cn(
                       "mt-1 text-[11px]",
@@ -169,25 +309,55 @@ function ThreadPanel({ thread, onChanged }: { thread: TeamThread; onChanged: () 
             );
           })
         )}
-        <div ref={bottomRef} />
       </div>
 
-      <div className="flex items-end gap-2 border-t border-border px-4 py-3">
-        <Textarea
-          value={reply}
-          onChange={(e) => setReply(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleReply();
-          }}
-          placeholder={`Reply to ${name} as Shopi team… (⌘/Ctrl + Enter to send)`}
-          rows={2}
-          maxLength={4000}
-          className="min-h-0 flex-1 resize-none"
-        />
-        <Button onClick={() => void handleReply()} loading={sending} disabled={!reply.trim()}>
-          {!sending && <Send />}
-          Send
-        </Button>
+      <div className="flex shrink-0 flex-col gap-2 border-t border-border px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <input ref={fileInput} type="file" accept="image/*,video/*" className="hidden" onChange={(event) => { selectAttachment(event.target.files?.[0] ?? null); event.currentTarget.value = ""; }} />
+        {file && (
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3 py-2">
+            <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-black/5">
+              {filePreview && file.type.startsWith("image/") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={filePreview} alt="Attachment preview" className="h-full w-full object-contain" />
+              ) : null}
+              {file.type.startsWith("video/") ? <div className="absolute inset-0 flex items-center justify-center bg-black/35"><Play className="size-4 text-white" fill="currentColor" /></div> : null}
+            </div>
+            <span className="flex-1 truncate text-xs text-muted">{file.type.startsWith("video/") ? "Video" : "Photo"} ready to send</span>
+            <button type="button" aria-label="Remove attachment" onClick={() => selectAttachment(null)} className="flex size-7 items-center justify-center rounded-full bg-black/10 dark:bg-white/10"><X className="size-3.5" /></button>
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          <Button type="button" variant="outline" size="icon" aria-label="Attach photo or video" onClick={() => fileInput.current?.click()} disabled={sending || uploading}>
+            <Paperclip />
+          </Button>
+          <textarea
+            ref={replyInput}
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleReply();
+            }}
+            placeholder={`Reply to ${name} as Shopi team…`}
+            rows={1}
+            maxLength={4000}
+            className="min-h-[42px] max-h-40 flex-1 resize-none overflow-y-auto rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-foreground outline-none focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/40"
+            style={{ maxHeight: 160 }}
+          />
+          <Button
+            size="icon"
+            className="sm:size-auto sm:px-4"
+            onClick={() => void handleReply()}
+            loading={sending || uploading}
+            disabled={!reply.trim() && !file}
+            aria-label={sending || uploading ? "Sending reply" : "Send reply"}
+            title="Send reply"
+          >
+            {!sending && !uploading && <Send />}
+            <span className="hidden sm:inline">
+              {sending || uploading ? "Sending..." : "Send"}
+            </span>
+          </Button>
+        </div>
       </div>
     </Card>
   );
@@ -258,7 +428,10 @@ function SentTable({ onViewReplies }: { onViewReplies: (broadcast: TeamBroadcast
                               {broadcast.subject}
                             </p>
                           )}
-                          <p className="truncate text-xs text-muted">{broadcast.body}</p>
+                          <p className="truncate text-xs text-muted">
+                            {broadcast.body || (broadcast.mediaAssetId ? "Attachment" : "")}
+                            {broadcast.mediaAssetId ? " · attachment" : ""}
+                          </p>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -434,8 +607,8 @@ export default function TeamMessagesPage() {
             </div>
           )}
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
-            <div className="space-y-3">
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
+            <div className={cn("min-w-0 space-y-3", selected && "hidden lg:block")}>
               <Card>
                 <CardContent className="p-0">
                   {loading && threads.length === 0 ? (
@@ -506,7 +679,7 @@ export default function TeamMessagesPage() {
             </div>
 
             {selected ? (
-              <ThreadPanel key={selected.userId} thread={selected} onChanged={() => void refetch()} />
+              <ThreadPanel key={selected.userId} thread={selected} onChanged={() => void refetch()} onBack={() => setSelectedThread(null)} />
             ) : (
               <Card className="hidden min-h-[480px] items-center justify-center lg:flex">
                 <p className="text-sm text-muted">Select a thread to read and reply</p>

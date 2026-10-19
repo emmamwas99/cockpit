@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation } from "@apollo/client/react";
 import { toast } from "sonner";
-import { Send } from "lucide-react";
-import { ADMIN_SEND_TEAM_MESSAGE } from "@/graphql/operations";
+import { uploadTeamMediaAsset } from "@/lib/team/upload-team-media";
+import { Paperclip, Send, X } from "lucide-react";
+import { ADMIN_SEND_TEAM_MESSAGE, NOTIFY_IMAGE_UPLOADED, NOTIFY_VIDEO_UPLOADED, REQUEST_IMAGE_UPLOAD, REQUEST_VIDEO_UPLOAD } from "@/graphql/operations";
 import { TeamBroadcastAudience } from "@/graphql/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,14 +57,22 @@ export function ComposeTeamMessageDialog({ open, onOpenChange, recipient, onSent
   const [audience, setAudience] = useState(TeamBroadcastAudience.ACTIVE_CREATORS);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [send, { loading }] = useMutation(ADMIN_SEND_TEAM_MESSAGE, {
     refetchQueries: ["AdminTeamBroadcasts", "AdminTeamThreads"],
   });
+  const [requestImageUpload] = useMutation(REQUEST_IMAGE_UPLOAD);
+  const [requestVideoUpload] = useMutation(REQUEST_VIDEO_UPLOAD);
+  const [notifyImageUploaded] = useMutation(NOTIFY_IMAGE_UPLOADED);
+  const [notifyVideoUploaded] = useMutation(NOTIFY_VIDEO_UPLOADED);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
       setSubject("");
       setBody("");
+      setFile(null);
     }
     onOpenChange(next);
   }
@@ -71,11 +80,24 @@ export function ComposeTeamMessageDialog({ open, onOpenChange, recipient, onSent
   const audienceHint = AUDIENCE_OPTIONS.find((o) => o.value === audience)?.hint;
 
   async function handleSend() {
-    if (!body.trim()) {
-      toast.error("Write a message first");
+    if (!body.trim() && !file) {
+      toast.error("Write a message or attach a photo or video first");
       return;
     }
+    setUploading(Boolean(file));
     try {
+      let mediaAssetId: string | null = null;
+      if (file) {
+        const isVideo = file.type.startsWith("video/");
+        const session = isVideo
+          ? (await requestVideoUpload({ variables: { corsOrigin: window.location.origin } })).data?.requestVideoUpload
+          : (await requestImageUpload({ variables: { mimeType: file.type || "image/jpeg" } })).data?.requestImageUpload;
+        if (!session?.mediaAssetId) throw new Error("Could not start the upload");
+        await uploadTeamMediaAsset(file, session.mediaAssetId, isVideo);
+        if (isVideo) await notifyVideoUploaded({ variables: { mediaAssetId: session.mediaAssetId } });
+        else await notifyImageUploaded({ variables: { mediaAssetId: session.mediaAssetId } });
+        mediaAssetId = session.mediaAssetId;
+      }
       const { data } = await send({
         variables: {
           input: recipient
@@ -84,8 +106,9 @@ export function ComposeTeamMessageDialog({ open, onOpenChange, recipient, onSent
                 userIds: [recipient.id],
                 subject: subject.trim() || null,
                 body: body.trim(),
+                mediaAssetId,
               }
-            : { audience, subject: subject.trim() || null, body: body.trim() },
+            : { audience, subject: subject.trim() || null, body: body.trim(), mediaAssetId },
         },
       });
       const count = data?.adminSendTeamMessage.recipientCount ?? 0;
@@ -98,6 +121,8 @@ export function ComposeTeamMessageDialog({ open, onOpenChange, recipient, onSent
       onSent?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not send message");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -154,6 +179,24 @@ export function ComposeTeamMessageDialog({ open, onOpenChange, recipient, onSent
                 "Hi! How has selling on Shopi been this month?\n\nTell us in 2 minutes: https://forms.gle/…"
               }
             />
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => fileInput.current?.click()} disabled={uploading || loading}>
+                <Paperclip /> Attach photo or video
+              </Button>
+              {file && (
+                <span className="flex min-w-0 items-center gap-1 text-xs text-muted">
+                  <span className="truncate">{file.name}</span>
+                  <button type="button" aria-label="Remove attachment" onClick={() => setFile(null)}><X className="size-3.5" /></button>
+                </span>
+              )}
+            </div>
             <p className="text-right text-xs text-muted">
               {body.length}/{MAX_BODY}
             </p>
@@ -164,7 +207,7 @@ export function ComposeTeamMessageDialog({ open, onOpenChange, recipient, onSent
           <Button variant="ghost" onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={() => void handleSend()} loading={loading}>
+          <Button onClick={() => void handleSend()} loading={loading || uploading} disabled={!body.trim() && !file}>
             {!loading && <Send />}
             {loading ? "Sending..." : "Send"}
           </Button>

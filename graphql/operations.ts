@@ -912,6 +912,22 @@ const TEAM_MESSAGE_FIELDS = gql`
     sender
     subject
     body
+    mediaAssetId
+    mediaAsset {
+      type
+      status
+      thumbnailUrl
+      r2Variants {
+        url
+        variant
+        width
+        height
+      }
+      muxMeta {
+        playbackId
+        thumbnailUrl
+      }
+    }
     broadcastId
     readAt
     createdAt
@@ -963,6 +979,7 @@ export const REMOVE_ALL_WEB_PUSH_SUBSCRIPTIONS: TypedDocumentNode<
 const TEAM_BROADCAST_FIELDS = gql`
   fragment TeamBroadcastFields on TeamBroadcast {
     id
+    mediaAssetId
     subject
     body
     audience
@@ -1091,10 +1108,10 @@ export const ADMIN_SEND_TEAM_MESSAGE: TypedDocumentNode<
 
 export const ADMIN_REPLY_TEAM_THREAD: TypedDocumentNode<
   { adminReplyTeamThread: TeamMessage },
-  { userId: string; body: string }
+  { userId: string; body: string; mediaAssetId?: string | null }
 > = gql`
-  mutation AdminReplyTeamThread($userId: String!, $body: String!) {
-    adminReplyTeamThread(userId: $userId, body: $body) {
+  mutation AdminReplyTeamThread($userId: String!, $body: String!, $mediaAssetId: String) {
+    adminReplyTeamThread(userId: $userId, body: $body, mediaAssetId: $mediaAssetId) {
       ...TeamMessageFields
     }
   }

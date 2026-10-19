@@ -448,6 +448,14 @@ export interface TeamMessage {
   sender: TeamMessageSender;
   subject?: string | null;
   body: string;
+  mediaAssetId?: string | null;
+  mediaAsset?: {
+    type: "IMAGE" | "GENERATED_IMAGE" | "VIDEO";
+    status?: string;
+    thumbnailUrl?: string | null;
+    r2Variants?: { url: string; variant: string; width: number; height: number }[];
+    muxMeta?: { playbackId?: string | null; thumbnailUrl?: string | null } | null;
+  } | null;
   broadcastId?: string | null;
   readAt?: string | null;
   createdAt: string;
@@ -479,6 +487,7 @@ export interface PaginatedTeamThreads {
 
 export interface TeamBroadcast {
   id: string;
+  mediaAssetId?: string | null;
   subject?: string | null;
   body: string;
   audience: TeamBroadcastAudience;
@@ -497,6 +506,7 @@ export interface AdminSendTeamMessageInput {
   userIds?: string[] | null;
   subject?: string | null;
   body: string;
+  mediaAssetId?: string | null;
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
