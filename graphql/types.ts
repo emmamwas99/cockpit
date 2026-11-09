@@ -1323,6 +1323,8 @@ export enum ShopVerificationEventType {
   REJECTED = "REJECTED",
   REVOKED = "REVOKED",
   GRANTED = "GRANTED",
+  /** A verified seller changed their shop location; the tick stayed. */
+  LOCATION_UPDATED = "LOCATION_UPDATED",
 }
 
 /** A permit or shop photo. `url` is a private link that expires — refetch for a fresh one. */
@@ -1482,4 +1484,113 @@ export interface AdminRevokeShopVerificationInput {
 export interface AdminGrantShopVerificationInput {
   internalNote: string;
   note?: string | null;
+}
+
+// ── TikTok downloader analytics ──────────────────────────────────────────────
+
+export type TiktokSaverEventType = "LOOKUP" | "DOWNLOAD" | "CTA_CLICK";
+export type TiktokSaverOutcome = "SUCCESS" | "ERROR";
+export type TiktokSaverTool = "VIDEO" | "AUDIO" | "PHOTO";
+export type TiktokSaverAsset = "VIDEO" | "HD" | "AUDIO" | "IMAGE" | "ZIP";
+export type TiktokSaverError = "INVALID_URL" | "UNAVAILABLE" | "FETCH_FAILED" | "SAVE_FAILED";
+export type TiktokSaverDelivery = "DIRECT" | "PROXY";
+export type TiktokPostKind = "VIDEO" | "PHOTO";
+
+export interface TiktokSaverTotals {
+  lookups: number;
+  failedLookups: number;
+  downloads: number;
+  failedDownloads: number;
+  proxiedDownloads: number;
+  visitors: number;
+  downloaders: number;
+  ctaClicks: number;
+  signups: number;
+}
+
+export interface TiktokSaverPoint {
+  /** "YYYY-MM-DD", or "YYYY-MM-DDTHH" for hourly series (Africa/Nairobi). */
+  bucket: string;
+  lookups: number;
+  downloads: number;
+  visitors: number;
+}
+
+export interface TiktokSaverVideo {
+  key: string;
+  tiktokId?: string | null;
+  url: string;
+  authorUsername?: string | null;
+  title?: string | null;
+  kind?: TiktokPostKind | null;
+  lookups: number;
+  downloads: number;
+  visitors: number;
+  lastAt: string;
+}
+
+export interface TiktokSaverCreator {
+  authorUsername: string;
+  videos: number;
+  lookups: number;
+  downloads: number;
+  lastAt: string;
+}
+
+export interface TiktokSaverOverview {
+  days: number;
+  from: string;
+  to: string;
+  granularity: "hour" | "day";
+  totals: TiktokSaverTotals;
+  previous: TiktokSaverTotals;
+  lookupSuccessRate: number;
+  downloadRate: number;
+  series: TiktokSaverPoint[];
+  byTool: NamedCount[];
+  byAsset: NamedCount[];
+  bySource: NamedCount[];
+  byReferrer: NamedCount[];
+  byDevice: NamedCount[];
+  byLocale: NamedCount[];
+  byCountry: NamedCount[];
+  byCity: NamedCount[];
+  byError: NamedCount[];
+  byCta: NamedCount[];
+  videoCount: number;
+  creatorCount: number;
+  topVideos: TiktokSaverVideo[];
+  topCreators: TiktokSaverCreator[];
+}
+
+export interface TiktokSaverEvent {
+  id: string;
+  type: TiktokSaverEventType;
+  outcome: TiktokSaverOutcome;
+  tool: TiktokSaverTool;
+  asset?: TiktokSaverAsset | null;
+  error?: TiktokSaverError | null;
+  delivery?: TiktokSaverDelivery | null;
+  cta?: string | null;
+  tiktokUrl?: string | null;
+  tiktokId?: string | null;
+  authorUsername?: string | null;
+  title?: string | null;
+  postKind?: TiktokPostKind | null;
+  source: TrafficSource;
+  referrerHost?: string | null;
+  locale?: string | null;
+  device: string;
+  os?: string | null;
+  browser?: string | null;
+  country?: string | null;
+  city?: string | null;
+  sessionId: string;
+  createdAt: string;
+}
+
+export interface TiktokSaverEventPage {
+  items: TiktokSaverEvent[];
+  hasMore: boolean;
+  nextCursor: string | null;
 }

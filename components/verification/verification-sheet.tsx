@@ -317,6 +317,7 @@ const EVENT_LABEL: Record<ShopVerificationEventType, { label: string; icon: Reac
   [ShopVerificationEventType.GRANTED]: { label: "Verified without documents", icon: BadgeCheck, tone: "text-success bg-success-soft" },
   [ShopVerificationEventType.REJECTED]: { label: "Sent back for changes", icon: RotateCcw, tone: "text-secondary-strong bg-warning-soft" },
   [ShopVerificationEventType.REVOKED]: { label: "Verification removed", icon: ShieldOff, tone: "text-error bg-error-soft" },
+  [ShopVerificationEventType.LOCATION_UPDATED]: { label: "Shop location changed", icon: MapPin, tone: "text-muted bg-subtle" },
 };
 
 function HistoryItem({ event }: { event: AdminVerificationEvent }) {

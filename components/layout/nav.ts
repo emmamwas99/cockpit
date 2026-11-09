@@ -3,6 +3,7 @@ import {
   BadgeCheck,
   ChartLine,
   Clapperboard,
+  Download,
   FilePen,
   FolderTree,
   Gift,
@@ -62,6 +63,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/growth", label: "Growth", icon: ChartLine },
       { href: "/locations", label: "Locations", icon: MapPin },
+      { href: "/tiktok-saver", label: "TikTok downloader", icon: Download },
     ],
   },
   {

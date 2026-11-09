@@ -62,6 +62,10 @@ import type {
   PaginatedCreators,
   PaginatedUsers,
   SellerPerformance,
+  TiktokSaverEventPage,
+  TiktokSaverEventType,
+  TiktokSaverOutcome,
+  TiktokSaverOverview,
   UserRole,
   WebPushStatus,
   AdminApproveShopVerificationInput,
@@ -1698,6 +1702,128 @@ export const ADMIN_SOCIAL_PROOF_PERFORMANCE: TypedDocumentNode<
         clicks
         visits
         conversions
+      }
+    }
+  }
+`;
+
+// ── TikTok downloader ────────────────────────────────────────────────────────
+// Usage of the public TikTok tool pages (/tiktok-downloader and friends):
+// what is looked up and saved, by whom in aggregate, and how many go on to Shopi.
+
+export const ADMIN_TIKTOK_SAVER_OVERVIEW: TypedDocumentNode<
+  { adminTiktokSaverOverview: TiktokSaverOverview },
+  { days?: number }
+> = gql`
+  fragment TiktokSaverTotalsFields on TiktokSaverTotals {
+    lookups
+    failedLookups
+    downloads
+    failedDownloads
+    proxiedDownloads
+    visitors
+    downloaders
+    ctaClicks
+    signups
+  }
+
+  query AdminTiktokSaverOverview($days: Int) {
+    adminTiktokSaverOverview(days: $days) {
+      days
+      from
+      to
+      granularity
+      totals {
+        ...TiktokSaverTotalsFields
+      }
+      previous {
+        ...TiktokSaverTotalsFields
+      }
+      lookupSuccessRate
+      downloadRate
+      series {
+        bucket
+        lookups
+        downloads
+        visitors
+      }
+      byTool { key label count }
+      byAsset { key label count }
+      bySource { key label count }
+      byReferrer { key label count }
+      byDevice { key label count }
+      byLocale { key label count }
+      byCountry { key label count }
+      byCity { key label count }
+      byError { key label count }
+      byCta { key label count }
+      videoCount
+      creatorCount
+      topVideos {
+        key
+        tiktokId
+        url
+        authorUsername
+        title
+        kind
+        lookups
+        downloads
+        visitors
+        lastAt
+      }
+      topCreators {
+        authorUsername
+        videos
+        lookups
+        downloads
+        lastAt
+      }
+    }
+  }
+`;
+
+export const ADMIN_TIKTOK_SAVER_EVENTS: TypedDocumentNode<
+  { adminTiktokSaverEvents: TiktokSaverEventPage },
+  {
+    limit?: number;
+    after?: string | null;
+    type?: TiktokSaverEventType | null;
+    outcome?: TiktokSaverOutcome | null;
+  }
+> = gql`
+  query AdminTiktokSaverEvents(
+    $limit: Int
+    $after: String
+    $type: TiktokSaverEventType
+    $outcome: TiktokSaverOutcome
+  ) {
+    adminTiktokSaverEvents(limit: $limit, after: $after, type: $type, outcome: $outcome) {
+      hasMore
+      nextCursor
+      items {
+        id
+        type
+        outcome
+        tool
+        asset
+        error
+        delivery
+        cta
+        tiktokUrl
+        tiktokId
+        authorUsername
+        title
+        postKind
+        source
+        referrerHost
+        locale
+        device
+        os
+        browser
+        country
+        city
+        sessionId
+        createdAt
       }
     }
   }
