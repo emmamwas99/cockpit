@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@apollo/client/react";
 import { ArrowLeft, Clapperboard } from "lucide-react";
 import { ADMIN_CONTENT, ADMIN_CONTENT_COUNTS } from "@/graphql/operations";
-import type { AdminContent, AdminUser } from "@/graphql/types";
+import { ContentStatus, type AdminContent, type AdminUser } from "@/graphql/types";
 import { displayName, formatNumber, formatRelative } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,7 +96,12 @@ export function SellerPosts({
                 }}
                 className="-mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-surface"
               >
-                <PostCell post={post} className="flex-1" />
+                <div className="min-w-0 flex-1">
+                  <PostCell post={post} />
+                  {post.status === ContentStatus.REJECTED && post.approval?.rejectionReason && (
+                    <p className="ml-[52px] mt-1 text-xs text-error">Rejected: {post.approval.rejectionReason}</p>
+                  )}
+                </div>
                 <div className="hidden shrink-0 text-right text-xs text-muted sm:block">
                   <p>{formatNumber(post.stats.views)} views</p>
                   <p>{formatRelative(post.createdAt)}</p>

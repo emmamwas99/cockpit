@@ -1892,10 +1892,10 @@ export const ADMIN_REFERRAL_OVERVIEW: TypedDocumentNode<
 
 export const ADMIN_REFERRALS: TypedDocumentNode<
   { adminReferrals: { data: AdminReferralRow[]; meta: PaginationMeta } },
-  { page?: number; limit?: number; status?: ReferralStatus | null; referrerId?: string | null }
+  { page?: number; limit?: number; status?: ReferralStatus | null; referrerId?: string | null; search?: string | null }
 > = gql`
-  query AdminReferrals($page: Int, $limit: Int, $status: ReferralStatus, $referrerId: String) {
-    adminReferrals(page: $page, limit: $limit, status: $status, referrerId: $referrerId) {
+  query AdminReferrals($page: Int, $limit: Int, $status: ReferralStatus, $referrerId: String, $search: String) {
+    adminReferrals(page: $page, limit: $limit, status: $status, referrerId: $referrerId, search: $search) {
       data {
         referral {
           ...ReferralFields
@@ -1906,6 +1906,11 @@ export const ADMIN_REFERRALS: TypedDocumentNode<
         referee {
           ...AdminUserFields
         }
+        reward {
+          ...ReferralRewardFields
+        }
+        referrerPhone
+        refereePhone
         liveListingCount
         flags
       }
@@ -1920,6 +1925,7 @@ export const ADMIN_REFERRALS: TypedDocumentNode<
     }
   }
   ${REFERRAL_FIELDS}
+  ${REFERRAL_REWARD_FIELDS}
   ${ADMIN_USER_FIELDS}
 `;
 

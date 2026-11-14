@@ -987,6 +987,9 @@ export interface AdminReferralRow {
   referral: Referral;
   referrer?: AdminUser | null;
   referee?: AdminUser | null;
+  reward?: ReferralReward | null;
+  referrerPhone?: string | null;
+  refereePhone?: string | null;
   liveListingCount: number;
   flags: ReferralFlag[];
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApolloClient, useMutation, useQuery } from "@apollo/client/react";
 import { toast } from "sonner";
-import { AlertTriangle, Clapperboard, Gift, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, Clapperboard, Gift, RefreshCw, Search, X } from "lucide-react";
 import {
   ADMIN_MARK_REFERRAL_REWARD_PAID,
   ADMIN_REFERRAL_OVERVIEW,
@@ -134,11 +134,20 @@ export default function ReferralsPage() {
   const client = useApolloClient();
   const [view, setView] = useState<"payouts" | "sellers">("payouts");
   const [referrerFilter, setReferrerFilter] = useState<AdminUser | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [postsOf, setPostsOf] = useState<{ seller: AdminUser; context: string } | null>(null);
   const { data } = useQuery(ADMIN_REFERRAL_OVERVIEW, { fetchPolicy: "cache-and-network" });
   const overview = data?.adminReferralOverview;
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
   function showSellersOf(referrer: AdminUser) {
+    setSearchInput("");
+    setSearch("");
     setReferrerFilter(referrer);
     setView("sellers");
   }
@@ -190,6 +199,34 @@ export default function ReferralsPage() {
         />
       </div>
 
+      <div className="relative max-w-lg">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+        <Input
+          aria-label="Search referrers and referred sellers"
+          value={searchInput}
+          onChange={(event) => {
+            setSearchInput(event.target.value);
+            setReferrerFilter(null);
+            if (event.target.value) setView("sellers");
+          }}
+          placeholder="Search referrer or seller by name, phone, email, @handle"
+          className="pl-9 pr-9"
+        />
+        {searchInput && (
+          <button
+            type="button"
+            aria-label="Clear search"
+            onClick={() => { setSearchInput(""); setSearch(""); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        )}
+      </div>
+      {searchInput.trim().length === 1 && (
+        <p className="text-xs text-muted">Enter at least 2 characters to search.</p>
+      )}
+
       <Card className="overflow-x-clip">
         {view === "payouts" ? (
           <PayoutsView
@@ -200,6 +237,7 @@ export default function ReferralsPage() {
           />
         ) : (
           <SellersView
+            key={`${search}:${referrerFilter?.id ?? ""}`}
             tabs={<ViewTabs view={view} onChange={setView} pending={overview?.rewardsPending} total={overview?.totalReferrals} />}
             counts={{
               all: overview?.totalReferrals,
@@ -207,7 +245,9 @@ export default function ReferralsPage() {
               qualified: overview?.qualified,
               rejected: overview?.rejected,
             }}
+            minListings={overview?.terms.minListings}
             referrer={referrerFilter}
+            search={search}
             onClearReferrer={() => setReferrerFilter(null)}
             onShowSellers={showSellersOf}
             onShowPosts={showPosts}
@@ -488,14 +528,18 @@ function MarkPaidDialog({ row, onClose }: { row: AdminReferralRewardRow | null; 
 function SellersView({
   tabs,
   counts,
+  minListings,
   referrer,
+  search,
   onClearReferrer,
   onShowSellers,
   onShowPosts,
 }: {
   tabs: React.ReactNode;
   counts: { all?: number; pending?: number; qualified?: number; rejected?: number };
+  minListings?: number;
   referrer: AdminUser | null;
+  search: string;
   onClearReferrer: () => void;
   onShowSellers: (referrer: AdminUser) => void;
   onShowPosts: (seller: AdminUser | null | undefined, context: string) => void;
@@ -504,12 +548,13 @@ function SellersView({
   const [page, setPage] = useState(1);
   const [rejecting, setRejecting] = useState<AdminReferralRow | null>(null);
 
-  const { data, loading } = useQuery(ADMIN_REFERRALS, {
+  const { data, loading, error } = useQuery(ADMIN_REFERRALS, {
     variables: {
       page,
       limit: PAGE_SIZE,
       status: REFERRAL_STATUS_OF[filter] ?? null,
       referrerId: referrer?.id ?? null,
+      search: search.length >= 2 ? search : null,
     },
     fetchPolicy: "cache-and-network",
   });
@@ -552,10 +597,10 @@ function SellersView({
         <Segmented
           options={[
             // Counts are programme-wide, so they only label the unfiltered view.
-            { key: "all" as const, label: "All", count: referrer ? undefined : counts.all },
-            { key: "pending" as const, label: "Still posting", count: referrer ? undefined : counts.pending },
-            { key: "qualified" as const, label: "Qualified", count: referrer ? undefined : counts.qualified },
-            { key: "rejected" as const, label: "Rejected", count: referrer ? undefined : counts.rejected },
+            { key: "all" as const, label: "All", count: referrer || search ? undefined : counts.all },
+            { key: "pending" as const, label: "Still posting", count: referrer || search ? undefined : counts.pending },
+            { key: "qualified" as const, label: "Qualified", count: referrer || search ? undefined : counts.qualified },
+            { key: "rejected" as const, label: "Rejected", count: referrer || search ? undefined : counts.rejected },
           ]}
           value={filter}
           onChange={(key) => {
@@ -565,10 +610,12 @@ function SellersView({
         />
       </ListToolbar>
 
-      {loading && !data ? (
+      {error ? (
+        <EmptyState icon={AlertTriangle} title="Could not load referrals" description={error.message} />
+      ) : loading && !data ? (
         <TableSkeleton />
       ) : rows.length === 0 ? (
-        <EmptyState icon={Gift} title="No referred sellers here" />
+        <EmptyState icon={Gift} title={search ? "No matching referrals" : "No referred sellers here"} />
       ) : (
         <Table>
           <TableHeader>
@@ -577,21 +624,24 @@ function SellersView({
               <TableHead>Invited by</TableHead>
               <TableHead className="text-right">Live listings</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Payout</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead className="w-44" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row) => {
-              const { referral, referee, referrer: by } = row;
+              const { referral, referee, referrer: by, reward } = row;
               const badge = REFERRAL_BADGE[referral.status];
               return (
                 <TableRow key={referral.id}>
                   <TableCell>
                     <UserCell user={referee} />
+                    {row.refereePhone && <p className="mt-1 text-xs text-muted">{formatPhone(row.refereePhone)}</p>}
                   </TableCell>
                   <TableCell>
                     <UserCell user={by} />
+                    {row.referrerPhone && <p className="mt-1 text-xs text-muted">{formatPhone(row.referrerPhone)}</p>}
                     {by && (
                       <button
                         type="button"
@@ -603,7 +653,9 @@ function SellersView({
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <p className="font-medium tabular-nums text-foreground">{row.liveListingCount}</p>
+                    <p className="font-medium tabular-nums text-foreground">
+                      {row.liveListingCount}{minListings !== undefined ? ` / ${minListings}` : ""}
+                    </p>
                     {referral.status === ReferralStatus.QUALIFIED &&
                       referral.listingCount !== row.liveListingCount && (
                         <p className="text-xs text-muted">{referral.listingCount} at qualifying</p>
@@ -614,6 +666,34 @@ function SellersView({
                     <Flags flags={row.flags} />
                     {referral.status === ReferralStatus.REJECTED && referral.rejectionReason && (
                       <p className="mt-1 max-w-48 text-xs text-muted">{referral.rejectionReason}</p>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {reward ? (
+                      <>
+                        <Badge variant={REWARD_BADGE[reward.status].variant}>
+                          {REWARD_BADGE[reward.status].label} · {formatKes(reward.amountKes)}
+                        </Badge>
+                        {reward.status === ReferralRewardStatus.PAID && reward.paidAt && (
+                          <p className="mt-1 text-xs text-muted" title={formatDate(reward.paidAt)}>
+                            Paid {formatRelative(reward.paidAt)}{reward.mpesaReference ? ` · ${reward.mpesaReference}` : ""}
+                          </p>
+                        )}
+                        {reward.status === ReferralRewardStatus.PAID && reward.paidToPhone && (
+                          <p className="text-xs text-muted">To {formatPhone(reward.paidToPhone)}</p>
+                        )}
+                        {reward.status === ReferralRewardStatus.CANCELLED && reward.cancelReason && (
+                          <p className="mt-1 max-w-48 text-xs text-muted">{reward.cancelReason}</p>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted">
+                        {referral.status === ReferralStatus.QUALIFIED
+                          ? "Reward not created yet"
+                          : referral.status === ReferralStatus.REJECTED
+                            ? "Not payable — referral rejected"
+                            : `Waiting for ${minListings ?? "enough"} live listings`}
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted">
@@ -628,7 +708,10 @@ function SellersView({
                         size="sm"
                         variant="outline"
                         disabled={!referee}
-                        onClick={() => onShowPosts(referee, `Invited by ${by ? displayName(by) : "a deleted account"}`)}
+                        onClick={() => onShowPosts(
+                          referee,
+                          `Invited by ${by ? displayName(by) : "a deleted account"}${referral.rejectionReason ? ` · Referral rejected: ${referral.rejectionReason}` : ""}`,
+                        )}
                       >
                         <Clapperboard /> Posts
                       </Button>
