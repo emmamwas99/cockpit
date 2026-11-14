@@ -48,8 +48,11 @@ export function useLivePost(post: AdminContent): AdminContent {
   return { ...post, ...live, creator: post.creator ? { ...post.creator, ...live.creator } : live.creator };
 }
 
-/** Status plus the conditions an admin needs to see at a glance. */
-export function PostStatusLine({ post }: { post: AdminContent }) {
+/**
+ * Status plus the conditions an admin needs to see at a glance. List rows
+ * pass `showBoost={false}`: they show the boost under the title instead.
+ */
+export function PostStatusLine({ post, showBoost = true }: { post: AdminContent; showBoost?: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <StatusBadge status={post.status} />
@@ -62,7 +65,7 @@ export function PostStatusLine({ post }: { post: AdminContent }) {
           <Flag /> {post.moderation.reportCount} report{post.moderation.reportCount === 1 ? "" : "s"}
         </Badge>
       )}
-      {post.boost?.isBoosted && (
+      {showBoost && post.boost?.isBoosted && (
         <Badge variant="accent">
           <Rocket /> <span className="capitalize">{post.boost.tier?.toLowerCase()}</span> ·{" "}
           {boostRunLabel(post.boost)}

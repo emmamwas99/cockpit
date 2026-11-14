@@ -1,5 +1,11 @@
 import { gql, type TypedDocumentNode } from "@apollo/client";
 import type {
+  AdminBillingSummary,
+  AdminMpesaCallback,
+  AdminPayment,
+  AdminPaymentCounts,
+  AdminPaymentTab,
+  MpesaCallbackStatus,
   AdminBoostCounts,
   AdminContentCounts,
   AdminConversationCounts,
@@ -2643,4 +2649,220 @@ export const ADMIN_GRANT_SHOP_VERIFICATION: TypedDocumentNode<
     }
   }
   ${ADMIN_SHOP_VERIFICATION_DETAIL_FIELDS}
+`;
+
+// ── Billing (M-Pesa) ──────────────────────────────────────────────────────────
+
+const ADMIN_PAYMENT_FIELDS = gql`
+  fragment AdminPaymentFields on AdminPayment {
+    id
+    reference
+    status
+    amount
+    currency
+    phone
+    itemLabel
+    targetId
+    itemCode
+    receipt
+    failureReason
+    moneyReceived
+    createdAt
+    paidAt
+    completedAt
+    failedAt
+    refundedAt
+    userId
+    user {
+      ...AdminUserFields
+    }
+    phoneRaw
+    confirmedVia
+    failureCode
+    reviewReason
+    checkoutRequestId
+    merchantRequestId
+    resultCode
+    resultDesc
+    paidAmount
+    paidPhone
+    transactionDate
+    deliveredRef
+    deliveryAttempts
+    deliveryError
+    checkAttempts
+    nextCheckAt
+    stkSentAt
+    resolvedBy
+    resolutionNote
+    events {
+      at
+      type
+      message
+      actorId
+      data
+    }
+  }
+  ${ADMIN_USER_FIELDS}
+`;
+
+export const ADMIN_PAYMENTS: TypedDocumentNode<
+  { adminPayments: { data: AdminPayment[]; meta: PaginationMeta } },
+  { page?: number; limit?: number; tab?: AdminPaymentTab; search?: string | null }
+> = gql`
+  query AdminPayments($page: Int, $limit: Int, $tab: String, $search: String) {
+    adminPayments(page: $page, limit: $limit, tab: $tab, search: $search) {
+      data {
+        ...AdminPaymentFields
+      }
+      meta {
+        page
+        limit
+        total
+        totalPages
+        hasNextPage
+        hasPrevPage
+      }
+    }
+  }
+  ${ADMIN_PAYMENT_FIELDS}
+`;
+
+export const ADMIN_PAYMENT_COUNTS: TypedDocumentNode<
+  { adminPaymentCounts: AdminPaymentCounts },
+  { search?: string | null }
+> = gql`
+  query AdminPaymentCounts($search: String) {
+    adminPaymentCounts(search: $search) {
+      all
+      open
+      completed
+      failed
+      needsReview
+      refunded
+    }
+  }
+`;
+
+export const ADMIN_BILLING_SUMMARY: TypedDocumentNode<
+  { adminBillingSummary: AdminBillingSummary },
+  { days?: number }
+> = gql`
+  query AdminBillingSummary($days: Int) {
+    adminBillingSummary(days: $days) {
+      days
+      paymentsEnabled
+      environment
+      revenueKes
+      revenueTodayKes
+      started
+      completed
+      failed
+      needsReview
+      unmatchedCallbacks
+      daily {
+        date
+        revenueKes
+        completed
+      }
+      byItem {
+        code
+        count
+        revenueKes
+      }
+    }
+  }
+`;
+
+export const ADMIN_MPESA_CALLBACKS: TypedDocumentNode<
+  { adminMpesaCallbacks: { data: AdminMpesaCallback[]; meta: PaginationMeta } },
+  { page?: number; limit?: number; status?: MpesaCallbackStatus | null }
+> = gql`
+  query AdminMpesaCallbacks($page: Int, $limit: Int, $status: MpesaCallbackStatus) {
+    adminMpesaCallbacks(page: $page, limit: $limit, status: $status) {
+      data {
+        id
+        checkoutRequestId
+        merchantRequestId
+        resultCode
+        resultDesc
+        amount
+        receipt
+        phone
+        transactionDate
+        status
+        paymentId
+        attempts
+        lastError
+        resolutionNote
+        createdAt
+      }
+      meta {
+        page
+        limit
+        total
+        totalPages
+        hasNextPage
+        hasPrevPage
+      }
+    }
+  }
+`;
+
+export const ADMIN_RECHECK_PAYMENT: TypedDocumentNode<{ adminRecheckPayment: AdminPayment }, { id: string }> = gql`
+  mutation AdminRecheckPayment($id: String!) {
+    adminRecheckPayment(id: $id) {
+      ...AdminPaymentFields
+    }
+  }
+  ${ADMIN_PAYMENT_FIELDS}
+`;
+
+export const ADMIN_COMPLETE_PAYMENT: TypedDocumentNode<
+  { adminCompletePayment: AdminPayment },
+  { id: string; note: string; receipt?: string | null }
+> = gql`
+  mutation AdminCompletePayment($id: String!, $note: String!, $receipt: String) {
+    adminCompletePayment(id: $id, note: $note, receipt: $receipt) {
+      ...AdminPaymentFields
+    }
+  }
+  ${ADMIN_PAYMENT_FIELDS}
+`;
+
+export const ADMIN_MARK_PAYMENT_REFUNDED: TypedDocumentNode<
+  { adminMarkPaymentRefunded: AdminPayment },
+  { id: string; note: string }
+> = gql`
+  mutation AdminMarkPaymentRefunded($id: String!, $note: String!) {
+    adminMarkPaymentRefunded(id: $id, note: $note) {
+      ...AdminPaymentFields
+    }
+  }
+  ${ADMIN_PAYMENT_FIELDS}
+`;
+
+export const ADMIN_MARK_PAYMENT_FAILED: TypedDocumentNode<
+  { adminMarkPaymentFailed: AdminPayment },
+  { id: string; note: string }
+> = gql`
+  mutation AdminMarkPaymentFailed($id: String!, $note: String!) {
+    adminMarkPaymentFailed(id: $id, note: $note) {
+      ...AdminPaymentFields
+    }
+  }
+  ${ADMIN_PAYMENT_FIELDS}
+`;
+
+export const ADMIN_RESOLVE_MPESA_CALLBACK: TypedDocumentNode<
+  { adminResolveMpesaCallback: AdminMpesaCallback },
+  { id: string; note: string }
+> = gql`
+  mutation AdminResolveMpesaCallback($id: String!, $note: String!) {
+    adminResolveMpesaCallback(id: $id, note: $note) {
+      id
+      status
+      resolutionNote
+    }
+  }
 `;

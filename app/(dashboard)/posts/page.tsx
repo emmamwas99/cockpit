@@ -38,6 +38,7 @@ import {
   useDebouncedValue,
 } from "@/components/shared/page";
 import { PostCell } from "@/components/posts/post-thumb";
+import { PostListBadges } from "@/components/posts/post-badges";
 import { PostRowActions, POST_REFETCH } from "@/components/posts/post-actions";
 import { PostSheet, PostStatusLine } from "@/components/posts/post-detail";
 import { POST_TABS, postTab, type PostTabKey } from "@/components/posts/post-tabs";
@@ -276,9 +277,10 @@ function PostsScreen() {
                   )}
                   <TableCell className="max-w-[12rem] sm:max-w-80">
                     <PostCell post={post} />
+                    <PostListBadges post={post} className="mt-1.5 pl-[52px]" />
                     {/* Phones drop the status column; keep the status with the post. */}
                     <div className="mt-1.5 pl-[52px] sm:hidden">
-                      <PostStatusLine post={post} />
+                      <PostStatusLine post={post} showBoost={false} />
                     </div>
                   </TableCell>
                   <TableCell className="hidden max-w-56 lg:table-cell">
@@ -290,7 +292,7 @@ function PostsScreen() {
                     />
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    <PostStatusLine post={post} />
+                    <PostStatusLine post={post} showBoost={false} />
                   </TableCell>
                   <TableCell className="hidden text-right tabular-nums text-muted md:table-cell">
                     {formatNumber(post.stats.views)}

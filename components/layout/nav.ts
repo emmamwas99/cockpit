@@ -14,6 +14,7 @@ import {
   Rocket,
   Star,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -45,6 +46,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/posts", label: "Posts", icon: Clapperboard, badge: "pendingReview" },
       { href: "/drafts", label: "Drafts", icon: FilePen },
       { href: "/boosts", label: "Boosts", icon: Rocket },
+      { href: "/payments", label: "Payments", icon: Wallet },
       { href: "/categories", label: "Categories", icon: FolderTree },
     ],
   },

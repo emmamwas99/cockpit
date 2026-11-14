@@ -1612,3 +1612,125 @@ export interface TiktokSaverEventPage {
   hasMore: boolean;
   nextCursor: string | null;
 }
+
+// ── Billing (M-Pesa) ──────────────────────────────────────────────────────────
+
+export enum PaymentStatus {
+  INITIATED = "INITIATED",
+  PENDING = "PENDING",
+  PAID = "PAID",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
+  NEEDS_REVIEW = "NEEDS_REVIEW",
+  REFUNDED = "REFUNDED",
+}
+
+export enum PaymentConfirmation {
+  CALLBACK = "CALLBACK",
+  QUERY = "QUERY",
+  ADMIN = "ADMIN",
+}
+
+export enum MpesaCallbackStatus {
+  RECEIVED = "RECEIVED",
+  PROCESSED = "PROCESSED",
+  UNMATCHED = "UNMATCHED",
+  IGNORED = "IGNORED",
+  RESOLVED = "RESOLVED",
+}
+
+export type AdminPaymentTab = "all" | "open" | "completed" | "failed" | "needsReview" | "refunded";
+
+export interface PaymentEventView {
+  at: string;
+  type: string;
+  message: string;
+  actorId?: string | null;
+  /** JSON */
+  data?: string | null;
+}
+
+export interface AdminPayment {
+  id: string;
+  reference: string;
+  status: PaymentStatus;
+  amount: number;
+  currency: string;
+  /** 0712 345 678 */
+  phone: string;
+  itemLabel: string;
+  targetId: string;
+  itemCode: string;
+  receipt?: string | null;
+  failureReason?: string | null;
+  moneyReceived: boolean;
+  createdAt: string;
+  paidAt?: string | null;
+  completedAt?: string | null;
+  failedAt?: string | null;
+  refundedAt?: string | null;
+  userId: string;
+  user?: AdminUser | null;
+  phoneRaw: string;
+  confirmedVia?: PaymentConfirmation | null;
+  failureCode?: string | null;
+  reviewReason?: string | null;
+  checkoutRequestId?: string | null;
+  merchantRequestId?: string | null;
+  resultCode?: string | null;
+  resultDesc?: string | null;
+  paidAmount?: number | null;
+  paidPhone?: string | null;
+  transactionDate?: string | null;
+  deliveredRef?: string | null;
+  deliveryAttempts: number;
+  deliveryError?: string | null;
+  checkAttempts: number;
+  nextCheckAt?: string | null;
+  stkSentAt?: string | null;
+  resolvedBy?: string | null;
+  resolutionNote?: string | null;
+  events: PaymentEventView[];
+}
+
+export interface AdminPaymentCounts {
+  all: number;
+  open: number;
+  completed: number;
+  failed: number;
+  needsReview: number;
+  refunded: number;
+}
+
+export interface AdminBillingSummary {
+  days: number;
+  paymentsEnabled: boolean;
+  environment: string;
+  revenueKes: number;
+  revenueTodayKes: number;
+  started: number;
+  completed: number;
+  failed: number;
+  needsReview: number;
+  unmatchedCallbacks: number;
+  daily: { date: string; revenueKes: number; completed: number }[];
+  byItem: { code: string; count: number; revenueKes: number }[];
+}
+
+export interface AdminMpesaCallback {
+  id: string;
+  checkoutRequestId: string;
+  merchantRequestId?: string | null;
+  resultCode: string;
+  resultDesc?: string | null;
+  amount?: number | null;
+  receipt?: string | null;
+  phone?: string | null;
+  transactionDate?: string | null;
+  status: MpesaCallbackStatus;
+  paymentId?: string | null;
+  attempts: number;
+  lastError?: string | null;
+  resolutionNote?: string | null;
+  createdAt: string;
+}

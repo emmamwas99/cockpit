@@ -1,13 +1,108 @@
-import { Clapperboard, Gift, ImageIcon, Music2, Type } from "lucide-react";
+import { Clapperboard, FileSpreadsheet, Gift, ImageIcon, Music2, PenLine, Sparkles, Type, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { displayName } from "@/lib/format";
+import { displayName, formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
+  BoostTier,
+  ContentCreationMethod,
   ContentSource,
   ContentType,
   ReferralStatus,
   type AdminContent,
   type AdminReferredBy,
 } from "@/graphql/types";
+
+const TIER_NAME: Record<BoostTier, string> = {
+  [BoostTier.SILVER]: "Silver",
+  [BoostTier.GOLD]: "Gold",
+  [BoostTier.PLATINUM]: "Platinum",
+};
+
+/** The post's running boost and how long it has left, or null once its end date has passed. */
+export function liveBoost(post: Pick<AdminContent, "boost">) {
+  const boost = post.boost;
+  if (!boost?.isBoosted || !boost.expiresAt) return null;
+  const msLeft = new Date(boost.expiresAt).getTime() - Date.now();
+  if (msLeft <= 0) return null;
+  const daysLeft = Math.ceil(msLeft / (24 * 60 * 60 * 1000));
+  return {
+    tier: boost.tier ? TIER_NAME[boost.tier] : null,
+    expiresAt: boost.expiresAt,
+    left: daysLeft > 1 ? `${daysLeft} days left` : msLeft > 60 * 60 * 1000 ? "ends today" : "ending now",
+  };
+}
+
+/** "⚡ Boosted · Gold · 10 days left" while a campaign runs; nothing once it has ended. */
+export function BoostedBadge({ post }: { post: Pick<AdminContent, "boost"> }) {
+  const boost = liveBoost(post);
+  if (!boost) return null;
+  return (
+    <Badge title={`Boosted until ${formatDate(boost.expiresAt)}`}>
+      <Zap className="fill-current" />
+      Boosted{boost.tier ? ` · ${boost.tier}` : ""} · {boost.left}
+    </Badge>
+  );
+}
+
+const WRITER = {
+  [ContentCreationMethod.AGENT]: "written by Shopi Agent",
+  [ContentCreationMethod.MANUAL]: "written by the seller",
+} as const;
+
+/**
+ * How the listing was posted: a bulk upload, Shopi Agent, or the seller by
+ * hand. Bulk is the route, so it wins; who wrote the words goes in the hover
+ * text. Posts from before this was recorded show nothing rather than a guess.
+ */
+export function PostedViaBadge({ post }: { post: Pick<AdminContent, "isBulk" | "creationMethod"> }) {
+  if (post.isBulk) {
+    return (
+      <Badge
+        variant="outline"
+        title={`Bulk upload${post.creationMethod ? `, ${WRITER[post.creationMethod]}` : ""}`}
+      >
+        <FileSpreadsheet />
+        Bulk upload
+      </Badge>
+    );
+  }
+  if (post.creationMethod === ContentCreationMethod.AGENT) {
+    return (
+      <Badge variant="accent" title="Shopi Agent drafted it; the seller reviewed and posted">
+        <Sparkles />
+        Agent
+      </Badge>
+    );
+  }
+  if (post.creationMethod === ContentCreationMethod.MANUAL) {
+    return (
+      <Badge variant="secondary" title="The seller wrote it themselves">
+        <PenLine />
+        Manual
+      </Badge>
+    );
+  }
+  return null;
+}
+
+/** The badges a post row carries under its title. Renders nothing when there are none. */
+export function PostListBadges({
+  post,
+  className,
+}: {
+  post: Pick<AdminContent, "boost" | "isBulk" | "creationMethod">;
+  className?: string;
+}) {
+  const boosted = Boolean(liveBoost(post));
+  const via = Boolean(post.isBulk || post.creationMethod);
+  if (!boosted && !via) return null;
+  return (
+    <div className={cn("flex flex-wrap items-center gap-1", className)}>
+      <BoostedBadge post={post} />
+      <PostedViaBadge post={post} />
+    </div>
+  );
+}
 
 /** "by Jane Doe", or a note that the inviter's account is gone. */
 export function referrerLabel(referredBy: AdminReferredBy): string {
