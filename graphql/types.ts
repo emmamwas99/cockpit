@@ -983,6 +983,21 @@ export interface AdminReferralOverview {
   terms: ReferralTerms;
 }
 
+export interface AdminImageSearchMetrics {
+  total: number;
+  periodCount: number;
+  todayCount: number;
+  successCount: number;
+  noMatchCount: number;
+  errorCount: number;
+  limitedCount: number;
+  cachedCount: number;
+  homeCount: number;
+  marketCount: number;
+  signedInUsers: number;
+  daily: { date: string; count: number }[];
+}
+
 export interface AdminReferralRow {
   referral: Referral;
   referrer?: AdminUser | null;

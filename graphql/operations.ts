@@ -36,6 +36,7 @@ import type {
   PaginationMeta,
   AdminUserDeletionSummary,
   AdminReferralOverview,
+  AdminImageSearchMetrics,
   AdminReferralRewardRow,
   AdminReferralRow,
   Referral,
@@ -1886,6 +1887,28 @@ export const ADMIN_REFERRAL_OVERVIEW: TypedDocumentNode<
         minListings
         claimWindowDays
       }
+    }
+  }
+`;
+
+export const ADMIN_IMAGE_SEARCH_METRICS: TypedDocumentNode<
+  { adminImageSearchMetrics: AdminImageSearchMetrics },
+  { days?: number }
+> = gql`
+  query AdminImageSearchMetrics($days: Int) {
+    adminImageSearchMetrics(days: $days) {
+      total
+      periodCount
+      todayCount
+      successCount
+      noMatchCount
+      errorCount
+      limitedCount
+      cachedCount
+      homeCount
+      marketCount
+      signedInUsers
+      daily { date count }
     }
   }
 `;

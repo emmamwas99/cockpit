@@ -21,6 +21,7 @@ import {
   ADMIN_CONVERSATION_COUNTS,
   ADMIN_DASHBOARD_STATS,
   ADMIN_GROWTH_PULSE,
+  ADMIN_IMAGE_SEARCH_METRICS,
   ADMIN_REFERRAL_OVERVIEW,
 } from "@/graphql/operations";
 import { ContentStatus, type AdminContent } from "@/graphql/types";
@@ -82,6 +83,11 @@ export default function DashboardPage() {
     fetchPolicy: "cache-and-network",
   });
   const ratings = ratingData?.adminAppRatingOverview;
+  const { data: imageSearchData } = useQuery(ADMIN_IMAGE_SEARCH_METRICS, {
+    variables: { days: 30 },
+    fetchPolicy: "cache-and-network",
+  });
+  const imageSearch = imageSearchData?.adminImageSearchMetrics;
   const { data: pendingData, loading: pendingLoading } = useQuery(ADMIN_CONTENT, {
     variables: { page: 1, limit: 5, status: ContentStatus.PENDING_REVIEW },
     fetchPolicy: "cache-and-network",
@@ -221,6 +227,39 @@ export default function DashboardPage() {
           })}
         </div>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>Visual image search</CardTitle>
+          <p className="text-xs text-muted">Photo similarity searches in the last 30 days. Search photos are not saved in these metrics.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Searches today (UTC)" value={imageSearch ? formatNumber(imageSearch.todayCount) : undefined} />
+            <StatCard label="Last 30 days" value={imageSearch ? formatNumber(imageSearch.periodCount) : undefined} hint={imageSearch ? `${formatNumber(imageSearch.total)} all time` : undefined} />
+            <StatCard label="From Home" value={imageSearch ? formatNumber(imageSearch.homeCount) : undefined} />
+            <StatCard label="From Market" value={imageSearch ? formatNumber(imageSearch.marketCount) : undefined} />
+          </div>
+          <div className="grid gap-4 xl:grid-cols-[1fr_14rem]">
+            {imageSearch ? (
+              <TimeSeriesChart
+                dates={imageSearch.daily.map((day) => day.date)}
+                series={[{ name: "Image searches", color: "var(--chart-1)", values: imageSearch.daily.map((day) => day.count) }]}
+                valueFormatter={formatNumber}
+                height={180}
+              />
+            ) : <Skeleton className="h-45 w-full" />}
+            <dl className="divide-y divide-border">
+              <Total label="With visual matches" value={imageSearch ? formatNumber(imageSearch.successCount) : undefined} />
+              <Total label="No visual match" value={imageSearch ? formatNumber(imageSearch.noMatchCount) : undefined} />
+              <Total label="Search errors" value={imageSearch ? formatNumber(imageSearch.errorCount) : undefined} />
+              <Total label="Rate limited" value={imageSearch ? formatNumber(imageSearch.limitedCount) : undefined} />
+              <Total label="Cache hits" value={imageSearch ? formatNumber(imageSearch.cachedCount) : undefined} />
+              <Total label="Signed-in users" value={imageSearch ? formatNumber(imageSearch.signedInUsers) : undefined} />
+            </dl>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
         <Card>
