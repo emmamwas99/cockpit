@@ -207,9 +207,6 @@ export function DocumentLightbox({
   );
 }
 
-/** How often the Verification badge rechecks for new submissions. */
-const POLL_MS = 60_000;
-
 /** Applications waiting for review, for the nav badge and the Waiting tab. */
 export function usePendingVerificationCount(): number {
   const { data } = useQuery(ADMIN_PENDING_SHOP_VERIFICATION_COUNT, { fetchPolicy: "cache-first" });
@@ -218,16 +215,13 @@ export function usePendingVerificationCount(): number {
 
 /**
  * Keeps the waiting count fresh across the dashboard — mounted once in the
- * layout, polling while the tab is visible. Decisions refetch it by name.
+ * layout, updated by socket events and a reconnect refresh.
  */
 export function VerificationSync() {
   const client = useApolloClient();
   const { on, onReconnect } = useSocket();
 
-  useQuery(ADMIN_PENDING_SHOP_VERIFICATION_COUNT, {
-    pollInterval: POLL_MS,
-    skipPollAttempt: () => document.hidden,
-  });
+  useQuery(ADMIN_PENDING_SHOP_VERIFICATION_COUNT);
 
   useEffect(
     () =>

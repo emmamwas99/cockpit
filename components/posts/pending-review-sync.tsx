@@ -6,13 +6,9 @@ import { ADMIN_PENDING_REVIEW_COUNT } from "@/graphql/operations";
 import { useSocket } from "@/hooks/useSocket";
 import { WS_EVENTS } from "@/lib/socket/socket-events";
 
-/** How often the Posts badge rechecks for newly submitted posts. */
-const POLL_MS = 60_000;
-
 /**
  * Posts waiting for approval, for the Posts nav badge and the Pending tab.
- * Reads the cache that <PendingReviewSync /> keeps fresh, so the sidebar,
- * mobile nav and posts page share one poll.
+ * Reads the cache that <PendingReviewSync /> keeps fresh.
  */
 export function usePendingReviewCount(): number {
   const { data } = useQuery(ADMIN_PENDING_REVIEW_COUNT, { fetchPolicy: "cache-first" });
@@ -22,16 +18,13 @@ export function usePendingReviewCount(): number {
 /**
  * Keeps the pending-review count current across the dashboard. Mounted once in
  * the dashboard layout. Post submissions and moderation actions push a socket
- * event; polling remains as a catch-up if an event is missed while disconnected.
+ * event; reconnecting refetches events missed while disconnected.
  */
 export function PendingReviewSync() {
   const client = useApolloClient();
   const { on, onReconnect } = useSocket();
 
-  useQuery(ADMIN_PENDING_REVIEW_COUNT, {
-    pollInterval: POLL_MS,
-    skipPollAttempt: () => document.hidden,
-  });
+  useQuery(ADMIN_PENDING_REVIEW_COUNT);
 
   useEffect(
     () =>

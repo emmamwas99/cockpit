@@ -353,8 +353,7 @@ export const ADMIN_DASHBOARD_STATS: TypedDocumentNode<
 `;
 
 /**
- * Posts waiting for approval, for the Posts nav badge. One cheap count, so it
- * is polled — adminDashboardStats runs a dozen counts and is not.
+ * Posts waiting for approval, for the Posts nav badge. Updated on socket events.
  */
 export const ADMIN_PENDING_REVIEW_COUNT: TypedDocumentNode<
   { adminPendingReviewCount: number },

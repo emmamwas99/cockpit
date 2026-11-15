@@ -66,10 +66,7 @@ export function getSocket(): Socket {
       const token = useAuthStore.getState().accessToken;
       cb(token ? { token } : {});
     },
-    transports: ["websocket", "polling"],
-    // If the websocket transport itself fails (proxy, firewall), fall back to
-    // long-polling instead of retrying websocket forever.
-    tryAllTransports: true,
+    transports: ["websocket"],
     autoConnect: false, // Connected explicitly by connectSocket()
     reconnection: true,
     reconnectionAttempts: Infinity,
